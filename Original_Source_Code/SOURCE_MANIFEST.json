@@ -1,0 +1,7 @@
+{
+  "arduino_origin": "User-provided Pasted text.txt from earlier conversation; copied without byte changes",
+  "arduino_original_sha256": "1f847a9d935ca0ec6cbde9c3ca36bd44e92db5dd7b8071cb795dffebd8e5d059",
+  "raspberry_pi_origin": "Reconstructed as a .py file from the exact code text in user conversation; no attached source file was available to byte-compare",
+  "raspberry_pi_transcription_sha256": "a7305e1119182928d337ba119277d44c894d034d3c92de11c20ec8ed7966eef8",
+  "note": "Original Arduino and Raspberry Pi source files are never patched by simulation scripts. Only the simulation copies are changed."
+}

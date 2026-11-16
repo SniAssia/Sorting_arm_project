@@ -1,0 +1,20 @@
+Time_s,State,Event,Waypoint,Pose
+0,ARMED_IDLE,RUN accepted,0,HOME
+0,MOVING,Start waypoint,1,AP
+9.09999999999998,WAITING,Pause before next waypoint,1,AP
+10.1,MOVING,Start waypoint,2,PICK
+14,GRIPPER_ACTION,CLOSE,2,PICK
+14.75,WAITING,Pause before next waypoint,2,PICK
+15.75,MOVING,Start waypoint,3,AP
+19.65,WAITING,Pause before next waypoint,3,AP
+20.65,MOVING,Start waypoint,4,HOME
+29.7500000000001,WAITING,Pause before next waypoint,4,HOME
+30.7500000000001,MOVING,Start waypoint,5,AG
+33.5500000000002,WAITING,Pause before next waypoint,5,AG
+34.5500000000002,MOVING,Start waypoint,6,DG
+36.0500000000002,GRIPPER_ACTION,OPEN,6,DG
+36.8000000000002,WAITING,Pause before next waypoint,6,DG
+37.8000000000002,MOVING,Start waypoint,7,AG
+39.3000000000002,WAITING,Pause before next waypoint,7,AG
+40.3000000000002,MOVING,Start waypoint,8,HOME
+43.1000000000003,ARMED_IDLE,Route command complete,8,HOME

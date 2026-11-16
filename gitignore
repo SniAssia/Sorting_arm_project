@@ -1,0 +1,117 @@
+# One entry-point README replaces this local/ZIP quick-start file.
+/START_HERE.md
+
+# Local developer configuration, credentials, tokens, and private keys
+.env
+.env.*
+!.env.example
+.envrc
+*.local
+*.secret
+*.secrets
+/secrets/
+/credentials/
+/keys/
+*.pem
+*.key
+*.p12
+*.pfx
+*.p8
+*service-account*.json
+*credentials*.json
+*token*.json
+
+# Local paths, private experiments, and personal/team working material
+/private/
+/local/
+/notes_private/
+/docs/evidence/private/
+/docs/evidence/raw/
+/docs/raw_recordings/
+/docs/team_notes/
+/docs/private_measurements/
+
+# Camera images produced by the original Raspberry Pi script.
+# Copy only reviewed and approved illustrations into docs/evidence/.
+classification_result.jpg
+roi.jpg
+
+# Unreviewed or large physical recordings (submit the capsule separately)
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.heic
+*.HEIC
+*.wav
+
+# Local physical-trial recordings; keep the blank public template tracked.
+/docs/physical_test_completed.csv
+/docs/physical_trials*.csv
+/docs/experimental_raw*.csv
+
+# Python environments and caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# MATLAB, Simulink, and editor-generated temporary/build files
+*.asv
+*.m~
+*.autosave
+*.slxc
+*.mat
+*.slxp
+slprj/
+*_ert_rtw/
+*_grt_rtw/
+codegen/
+*.mexw64
+*.mexa64
+*.mexmaci64
+
+# Generated MATLAB analysis files are reproducible. KEEP the three
+# bundled command CSVs because PyBullet needs them without MATLAB.
+/MATLAB/outputs/**
+!/MATLAB/outputs/
+!/MATLAB/outputs/RED/
+!/MATLAB/outputs/GREEN/
+!/MATLAB/outputs/BLUE/
+!/MATLAB/outputs/RED/commands.csv
+!/MATLAB/outputs/GREEN/commands.csv
+!/MATLAB/outputs/BLUE/commands.csv
+
+# PyBullet-generated screenshots: copy chosen images to docs/evidence/
+/PyBullet/screenshots/
+
+# Desktop/editor-specific files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# LaTeX auxiliary files if the report source is added to this repository
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.lof
+*.lot

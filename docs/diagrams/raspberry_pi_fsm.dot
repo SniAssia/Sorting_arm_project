@@ -1,0 +1,25 @@
+digraph Vision {
+  graph [rankdir=LR, bgcolor="white", splines=polyline, nodesep=0.42, ranksep=0.85, pad=0.2, fontname="DejaVu Sans"];
+  node [shape=box, style="rounded,filled", fillcolor="#E7F1FA", color="#436789", fontname="DejaVu Sans", fontsize=11, margin="0.15,0.12"];
+  edge [color="#58758C", arrowsize=0.7, fontname="DejaVu Sans", fontsize=9];
+  START [shape=oval, fillcolor="#DFEAE5"];
+  START -> CAPTURE;
+  CAPTURE -> CLASSIFY [label="single frame"];
+  CLASSIFY -> NO_COLOR [label="<20% coverage"];
+  CLASSIFY -> CHECK_ROUTE [label="recognized color"];
+  CHECK_ROUTE -> REJECTED [label="no model OK"];
+  CHECK_ROUTE -> CONFIRM [label="route model OK"];
+  CONFIRM -> DECLINED [label="no"];
+  CONFIRM -> ARM [label="yes"];
+  ARM -> RUN [label="fixed wait"];
+  RUN -> MONITOR;
+  MONITOR -> DONE [label="complete line"];
+  MONITOR -> ERROR [label="ERR: line"];
+  MONITOR -> TIMEOUT [label="180 s"];
+  DONE [fillcolor="#DBF1DF"];
+  ERROR [fillcolor="#FBE4DF"];
+  TIMEOUT [fillcolor="#FBEFCB"];
+  NO_COLOR [fillcolor="#FBEFCB"];
+  REJECTED [fillcolor="#FBE4DF"];
+  DECLINED [fillcolor="#EFEFEF"];
+}

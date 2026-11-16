@@ -1,0 +1,9 @@
+SEVEN MATLAB KINEMATIC MODEL - SIMULATION SUMMARY
+L1 = 12.00 cm | L2 = 12.00 cm | initial q = [105.0 73.0 60.0] deg
+Max numerical FK/IK round-trip error: 0.00000000 cm
+RED: 45.70 s nominal; pick drift 2.731 cm; drop drift 0.200 cm
+GREEN: 43.10 s nominal; pick drift 2.731 cm; drop drift 0.200 cm
+BLUE: 49.50 s nominal; pick drift 2.731 cm; drop drift 0.200 cm
+IMPORTANT: all motion is predicted from COMMANDS; no measured joint feedback.
+Dynamics uses illustrative tau 0.35 s; not experimentally identified.
+Limits are software/conservative reach constraints, NOT collision checks.

@@ -1,0 +1,176 @@
+<?xml version="1.0" ?>
+<robot name="SEVEN_3DOF_parametric_proxy">
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0.03" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.027" length="0.06"/>
+      </geometry>
+      <material name="base_link_material">
+        <color rgba="0.16 0.20 0.26 1"/>
+      </material>
+    </visual>
+  </link>
+  <link name="yaw_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.15"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <cylinder radius="0.029" length="0.018"/>
+      </geometry>
+      <material name="yaw_link_material">
+        <color rgba="0.20 0.28 0.37 1"/>
+      </material>
+    </visual>
+  </link>
+  <link name="shoulder_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.14"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0.060000 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.022 0.120000 0.021"/>
+      </geometry>
+      <material name="shoulder_link_material">
+        <color rgba="0.22 0.47 0.77 1"/>
+      </material>
+    </visual>
+  </link>
+  <link name="elbow_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.1"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0.060000 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.019 0.120000 0.017"/>
+      </geometry>
+      <material name="elbow_link_material">
+        <color rgba="0.25 0.62 0.79 1"/>
+      </material>
+    </visual>
+  </link>
+  <link name="gripper_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.06"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 -0.015 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.048 0.026 0.023"/>
+      </geometry>
+      <material name="gripper_link_material">
+        <color rgba="0.14 0.21 0.28 1"/>
+      </material>
+    </visual>
+  </link>
+  <link name="left_jaw">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.015"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0.010 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.006 0.035 0.012"/>
+      </geometry>
+      <material name="left_jaw_material">
+        <color rgba="0.95 0.62 0.23 1"/>
+      </material>
+    </visual>
+  </link>
+  <link name="right_jaw">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.015"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0.010 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.006 0.035 0.012"/>
+      </geometry>
+      <material name="right_jaw_material">
+        <color rgba="0.95 0.62 0.23 1"/>
+      </material>
+    </visual>
+  </link>
+  <link name="tool_marker">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="0.002"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <sphere radius="0.003"/>
+      </geometry>
+      <material name="tool_marker_material">
+        <color rgba="0.85 0.15 0.10 1"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="base_yaw" type="revolute">
+    <parent link="base_link"/>
+    <child link="yaw_link"/>
+    <origin xyz="0 0 0.060000" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-3.1415926535" upper="3.1415926535" effort="20" velocity="8"/>
+  </joint>
+  <joint name="shoulder_pitch" type="revolute">
+    <parent link="yaw_link"/>
+    <child link="shoulder_link"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="3.1415926535" effort="20" velocity="8"/>
+  </joint>
+  <joint name="elbow_pitch" type="revolute">
+    <parent link="shoulder_link"/>
+    <child link="elbow_link"/>
+    <origin xyz="0 0.120000 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-3.1415926535" upper="0" effort="20" velocity="8"/>
+  </joint>
+  <joint name="wrist_mount" type="fixed">
+    <parent link="elbow_link"/>
+    <child link="gripper_link"/>
+    <origin xyz="0 0.120000 0" rpy="0 0 0"/>
+  </joint>
+  <joint name="left_grip" type="prismatic">
+    <parent link="gripper_link"/>
+    <child link="left_jaw"/>
+    <origin xyz="0 -0.004 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0.006" upper="0.026" effort="20" velocity="8"/>
+  </joint>
+  <joint name="right_grip" type="prismatic">
+    <parent link="gripper_link"/>
+    <child link="right_jaw"/>
+    <origin xyz="0 -0.004 0" rpy="0 0 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.026" upper="-0.006" effort="20" velocity="8"/>
+  </joint>
+  <joint name="tool_fixed" type="fixed">
+    <parent link="gripper_link"/>
+    <child link="tool_marker"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+</robot>
