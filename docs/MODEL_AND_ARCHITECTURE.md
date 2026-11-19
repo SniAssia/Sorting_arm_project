@@ -1,6 +1,6 @@
 # Architecture and mathematical model
 
-The baseline uses one firmware route per color. The enhanced controller checks a persistent count before `CHECK COLOR`, waits for an `ARM` acknowledgement, and updates the count after successful sequence completion. Each bin accepts three objects at its original fixed destination. [Bin capacity FSM](SLOT_TRACKING_AND_FSM.md)
+The Arduino provides one route per color. The bin capacity controller checks a persistent count before `CHECK COLOR`, waits for an `ARM` acknowledgement, and updates the count after successful sequence completion. Each bin accepts three objects at its original fixed destination. [Bin capacity FSM](SLOT_TRACKING_AND_FSM.md)
 
 
 ## 1. Hardware/software boundaries

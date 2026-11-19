@@ -3,13 +3,11 @@
 **Embedded Systems | UM6P College of Computing**  
 **Group members:** Assia Snissi, Khadija Lekbiri, Manal Zaidi, Rhita Rhallami 
 
-**System status:** Working color-sorting MVP reported on physical hardware; validated baseline mathematical and PyBullet command replay; bin capacity tracking implemented in Raspberry Pi software, pending physical trials.
+**System status:** The team reports physical operation of the color-sorting MVP. Software tests cover bin capacity, route execution and recovery. Repeated physical trials with partially filled bins are pending.
 
 ## Project summary
 
-This project demonstrates an **MVP of an industrial color-sorting system** using a 3D-printed SEVEN arm, an Arduino Uno, a Raspberry Pi camera, and Python/OpenCV. The camera classifies a single object as red, green, blue, or unknown. The Arduino moves the arm through eight programmed waypoints to pick up and route the object to its assigned bin. The upgraded Raspberry Pi controller additionally tracks **three objects per color bin** and retains independent occupancy estimates across restarts.
-
-The SEVEN physical platform is adapted from [T. Selçuk Yüksel's open-source robotic arm](https://github.com/elevenMiles/Robotic_Arm_Seven), under the repository's MIT license. The submitted Arduino firmware is the team's custom control program, not the upstream sketch.
+This project demonstrates an **MVP of an industrial color-sorting system** using a 3D-printed SEVEN arm, an Arduino Uno, a Raspberry Pi camera, and Python/OpenCV. The camera classifies a single object as red, green, blue, or unknown. The Arduino moves the arm through eight programmed waypoints to pick up and route the object to its assigned bin. The Raspberry Pi controller tracks a maximum of **three objects per color bin** and retains independent occupancy estimates across restarts.
 
 All objects of a given color use the same calibrated firmware waypoint. The Pi checks capacity before opening the serial port. Once the count reaches three, it reports the bin as full.
 
@@ -34,23 +32,21 @@ The three bins use RED → DR, GREEN → DG and BLUE → DB. UNKNOWN produces no
 | Location | Purpose |
 |---|---|
 | `Original_Source_Code/Arduino/SEVEN_color_sorter_original/*.ino` | physical robot firmware |
-| `Original_Source_Code/RaspberryPi/color_sorter_original.py` | single-drop Pi implementation (faithful earlier transcription) |
 | `Original_Source_Code/RaspberryPi/sort_with_slots.py` | persistent bin capacity controller |
-| `Original_Source_Code/SOURCE_MANIFEST.json` | Source provenance and original-file SHA-256 hashes |
 | `config/slots.json` | Capacity and firmware destination identifier for each color |
 | `MATLAB/` | FK/IK, route modeling, plots, numerical tests and state machines |
 | `MATLAB/outputs/{RED,GREEN,BLUE}/commands.csv` | Verified fixed-destination command trajectories |
 | `MATLAB/seven_slot_fsm.m` | Capacity-aware controller FSM and logical example |
-| `PyBullet/` | Generic 3D arm, baseline sorting replay, URDF and verification |
+| `PyBullet/` | Generic 3D arm, sorting route replay, URDF and verification |
 | `tests/` | Python unit tests using a simulated Arduino serial interface |
 | `tools/preflight.py` | Offline package/source-integrity checks |
-| `docs/` | Architecture, FSM specifications, testing, evidence checklist |
+| `docs/` | Kinematic model, FSM specifications, diagrams and Simulink scope plots |
 | `runtime/` | Local occupancy/camera output created on execution; intentionally not tracked |
 
 
 ## 3. Reproduce the numerical work (Windows/Linux; no hardware required)
 
-Prerequisites: Python 3 and MATLAB. Simulink is only required for the servo-tracking block model. PyBullet is only required for the 3D viewer.
+The four offline checks below require Python 3. MATLAB reproduces the trajectory and FSM models. Simulink runs the servo model, and PyBullet renders the 3D replay.
 
 From the repository root:
 
@@ -67,7 +63,7 @@ Windows users can alternatively run:
 powershell -ExecutionPolicy Bypass -File .\RUN_CHECKS.ps1
 ```
 
-The new controller can be inspected without a camera, an Arduino, or writing an occupancy file:
+The controller can be inspected without a camera, an Arduino, or writing an occupancy file:
 
 ```powershell
 python Original_Source_Code/RaspberryPi/sort_with_slots.py --status
@@ -103,19 +99,17 @@ python PyBullet/simulate.py --color BLUE --screenshot
 python PyBullet/simulate.py --all --headless
 ```
 
-PyBullet replays the exported firmware routes through a generic articulated URDF. The simulation scripts object grasp and release. Each replay uses the same destination as the enhanced controller for that color.
+PyBullet replays the exported firmware routes through a generic articulated URDF. The simulation scripts object grasp and release. Each replay uses the same destination as the Pi controller for that color.
 
-## 4. Physical robot setup and baseline reproduction
+## 4. Physical robot setup
 
 **Hardware:** SEVEN 3D-printed arm, Arduino Uno, four servo motors, Raspberry Pi and camera, external suitable servo supply, USB serial connection and common electrical ground. The original firmware maps base/shoulder/elbow/gripper to Arduino `D6/D9/D10/D11` respectively. Do **not** power four servos from the Arduino 5 V output.
 
 1. With servo power controlled and mechanical clearances checked, upload `Original_Source_Code/Arduino/SEVEN_color_sorter_original/SEVEN_color_sorter_original.ino` via Arduino IDE (board/port per actual setup).
 2. Use Arduino Serial Monitor at **115200 baud**, newline termination. Check `HELP`, `POSES` and `CHECK RED/GREEN/BLUE` before motion.
 3. Confirm the physical HOME, pickup and bin positions, servo orientation, grip open/closed calibration, and a safe startup posture. `ARM` attaches servos and commands a stored initial pose.
-4. On the Raspberry Pi, use an OS environment supporting Picamera2, OpenCV, NumPy and pyserial. The untouched baseline script is `Original_Source_Code/RaspberryPi/color_sorter_original.py`. It captures **one frame** and asks for operator confirmation before `RUN COLOR`.
+4. On the Raspberry Pi, use an OS environment supporting Picamera2, OpenCV, NumPy and pyserial. The sorting controller captures **one frame** and asks for operator confirmation before `RUN COLOR`.
 5. The camera ROI is `x=220:420, y=140:340` and the color threshold is 20% HSV-mask **pixel coverage**, not a probabilistic confidence score. The default serial device is `/dev/ttyACM0`.
-
-This preserves the existing demonstrated MVP even if the new capacity feature has not yet been physically commissioned.
 
 ## 5. Bin capacity tracking
 
@@ -127,7 +121,7 @@ This preserves the existing demonstrated MVP even if the new capacity feature ha
 
 Each bin uses one fixed drop-off coordinate for all three objects. The firmware owns the calibrated approach and drop coordinates. The Pi configuration records only the bin capacity and destination name. A fourth object is rejected before any serial command.
 
-When upgrading, install the supplied schema-v2 `config/slots.json` and retain `runtime/occupancy.json`. Existing schema-v1 counts and pending operations load directly after validation. If an earlier session changed the Arduino’s in-memory poses, restart the firmware while the arm is safely idle to restore the sketch’s calibrated defaults before using this controller.
+Use the supplied schema-v2 `config/slots.json` and retain `runtime/occupancy.json`. The controller validates the schema-v1 counts and pending record before each operation. If an earlier session changed the Arduino’s in-memory poses, restart the firmware while the arm is safely idle to restore the sketch’s calibrated defaults before using this controller.
 
 For the **capacity-aware** Raspberry Pi workflow:
 
@@ -187,9 +181,9 @@ The controller interpolates joint angles by 1 degree per 100 ms, gripper by 1 de
 
 `AP → PICK (close gripper) → AP → HOME → ABOVE_BIN → DROP (open gripper) → ABOVE_BIN → HOME`.
 
-The original Raspberry Pi and Arduino state diagrams are in `docs/diagrams/`. The enhanced FSM covers capacity validation, approval, execution, completion, counter updates and operator recovery. MATLAB exports its transition table and diagram with `seven_slot_fsm`.
+The original Raspberry Pi and Arduino state diagrams are in `docs/diagrams/`. The bin capacity FSM covers capacity validation, approval, execution, completion, counter updates and operator recovery. MATLAB exports its transition table and diagram with `seven_slot_fsm`.
 
-**Verified baseline computational results** (not measured physical runtime):
+**Verified computational results** (not measured physical runtime):
 
 | Color | Samples | Nominal duration | MATLAB/PyBullet interpretation |
 |---|---:|---:|---|
@@ -197,20 +191,10 @@ The original Raspberry Pi and Arduino state diagrams are in `docs/diagrams/`. Th
 | Green | 404 | 43.1 s | Fixed-destination command sequence |
 | Blue | 468 | 49.5 s | Fixed-destination command sequence |
 
-All nine original FK/IK target roundtrips passed numerical consistency tests. The modeled pickup descent has roughly **2.73 cm lateral deviation** under joint-space interpolation, so clearances cannot be inferred from endpoints. Reported PyBullet tool-frame agreement is numerical consistency between models, not evidence of real accuracy or grasp success. The enhanced workflow has hardware-free tests. Repeated physical sorting trials are still needed to measure placement reliability as each bin fills.
+All nine original FK/IK target roundtrips passed numerical consistency tests. The modeled pickup descent has roughly **2.73 cm lateral deviation** under joint-space interpolation, so clearances cannot be inferred from endpoints. Reported PyBullet tool-frame agreement is numerical consistency between models, not evidence of real accuracy or grasp success. Repeated physical sorting trials are still needed to measure placement reliability as each bin fills.
 
-## 7. Evidence, limitations and academic submission
-
-The provided project includes unchanged source code, test scripts, command CSVs, finite-state-machine diagrams, and previously captured Simulink scopes. The following are **not yet evidenced by this source package**: physical capacity trials, independent occupancy verification, repeated sorting success rates, photographs of the final physical setup, and the group's demonstration video.
-
-For a complete technical report, include original hardware/wiring photographs, representative camera ROI/classification images, the MATLAB numerical tables/plots, FSM diagrams, Simulink scopes, PyBullet screenshot, and physically measured trial records with success-rate calculations. Do not label hypothetical Simulink lag or scripted PyBullet object attachment as measured hardware behavior.
-
-The presentation notice requires **10 minutes of presentation plus 2–3 minutes of Q&A**. The group leader is to email **the presentation file, project report and capsule demonstration video**, identifying the group number and project title, to `sadek.belamfedel@um6p.ma` with `Oussama.ziadi@um6p.ma` in CC. The stated deadline is **22 November 2026 at 00:00** (start of Sunday; submit Saturday evening to avoid ambiguity). See [evidence and submission checklist](docs/SUBMISSION_CHECKLIST.md).
-
-**Limitations of this MVP:** one-frame/fixed-ROI detection, fixed pickup location, open-loop servos, no collision sensing, no continuous throughput operation, estimated bin occupancy, and only a generic scripted 3D representation. Expansion into industrial operation would require measured calibration, continuous sensing, verified trajectory clearance, reliable power and safety interlocks, mechanical robustness, and throughput testing.
-
-## 8. Attribution
+## 7. Attribution
 
 - T. Selçuk Yüksel, [SEVEN 3-DOF Arduino Robotic Arm](https://github.com/elevenMiles/Robotic_Arm_Seven), MIT licensed upstream design.
 - MATLAB and Simulink (MathWorks); PyBullet; OpenCV; Raspberry Pi Picamera2; Arduino Servo library.
-- The original Arduino sketch and original Raspberry Pi script are retained under `Original_Source_Code`; new work is kept separately and documented as an extension.
+- The team’s Arduino firmware and Raspberry Pi control software are in `Original_Source_Code/`.

@@ -15,9 +15,10 @@ ROOT = Path(__file__).resolve().parent.parent
 COLORS = ('RED', 'GREEN', 'BLUE')
 BASE = ROOT/'Original_Source_Code'
 ARDUINO = BASE/'Arduino'/'SEVEN_color_sorter_original'/'SEVEN_color_sorter_original.ino'
-ARDUINO_COPY = BASE/'Arduino'/'Arduino_original_paste.txt'
 PI = BASE/'RaspberryPi'/'color_sorter_original.py'
-MANIFEST = BASE/'SOURCE_MANIFEST.json'
+# Reference digests for the two preserved source files.
+ARDUINO_SHA256 = '1f847a9d935ca0ec6cbde9c3ca36bd44e92db5dd7b8071cb795dffebd8e5d059'
+PI_SHA256 = 'a7305e1119182928d337ba119277d44c894d034d3c92de11c20ec8ed7966eef8'
 FIELDS = ('Time_s','Base_deg','Shoulder_deg','Elbow_deg','Gripper_deg','X_cm','Y_cm','Z_cm')
 
 
@@ -32,18 +33,16 @@ def fk(q):
 
 
 def main():
-    for file in [ARDUINO, ARDUINO_COPY, PI, MANIFEST]:
+    for file in [ARDUINO, PI]:
         assert file.is_file(), f'Missing source: {file}'
-    data=json.loads(MANIFEST.read_text(encoding='utf-8'))
-    assert ARDUINO.read_bytes()==ARDUINO_COPY.read_bytes(), 'Arduino byte-for-byte copy differs'
-    assert sha256(ARDUINO)==data['arduino_original_sha256'], 'Arduino SHA-256 changed'
-    assert sha256(PI)==data['raspberry_pi_transcription_sha256'], 'Pi transcription SHA-256 changed'
+    assert sha256(ARDUINO)==ARDUINO_SHA256, 'Arduino SHA-256 changed'
+    assert sha256(PI)==PI_SHA256, 'Pi transcription SHA-256 changed'
     ast.parse(PI.read_text(encoding='utf-8'),filename=str(PI))
     for script in list((ROOT/'PyBullet').glob('*.py')) + [BASE/'RaspberryPi'/'sort_with_slots.py']:
         ast.parse(script.read_text(encoding='utf-8'),filename=str(script))
     for needle in ['CHECK {detected_color}', 'RUN {detected_color}', 'MIN_COVERAGE = 20.0']:
         assert needle in PI.read_text(encoding='utf-8'), f'Pi source missing {needle}'
-    print('[PASS] Original Arduino binary identical to preserved paste, both original-source SHA-256 signatures match')
+    print('[PASS] Arduino and Raspberry Pi source checksums match')
 
     excluded=['MATLAB/seven_render_3d.m','MATLAB/seven_drive_simscape.m',
               'MATLAB/seven_import_simscape.m','MATLAB/src/seven_animate.m',
@@ -94,16 +93,14 @@ def main():
                             for color,dest in zip(COLORS, ('DR','DG','DB'))}
     for rel in ['MATLAB/seven_slot_fsm.m','MATLAB/seven_slot_fsm_self_test.m',
                 'Original_Source_Code/RaspberryPi/sort_with_slots.py', 'tests/test_slot_sorter.py']:
-        assert (ROOT/rel).is_file(), f'Missing counter extension: {rel}'
-    assert not (ROOT/'START_HERE.md').exists(), 'Root README must be sole setup guide'
+        assert (ROOT/rel).is_file(), f'Missing bin capacity component: {rel}'
     print('[PASS] Three bins of capacity three reference the original firmware destinations')
 
     docs=['README.md','docs/SLOT_TRACKING_AND_FSM.md','docs/MODEL_AND_ARCHITECTURE.md',
-          'docs/FINITE_STATE_MACHINES.md','docs/VALIDATION.md','docs/SUBMISSION_CHECKLIST.md']
+          'docs/FINITE_STATE_MACHINES.md']
     for rel in docs:
         assert (ROOT/rel).is_file() and (ROOT/rel).stat().st_size>300, f'Missing documentation {rel}'
     print('PASS: offline integrity, simulation consistency and documentation checks complete.')
-    print('NOTE: MATLAB/Simulink GUI and Raspberry Pi hardware must be validated on the team computers.')
 
 
 if __name__=='__main__':

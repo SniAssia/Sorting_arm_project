@@ -1,6 +1,6 @@
 # Finite-state-machine specifications
 
-The baseline uses one firmware route per color. The enhanced controller checks a persistent count before `CHECK COLOR`, waits for an `ARM` acknowledgement, and updates the count after successful sequence completion. Each bin accepts three objects at its original fixed destination. [Bin capacity FSM](SLOT_TRACKING_AND_FSM.md)
+The Arduino provides one route per color. The bin capacity controller checks a persistent count before `CHECK COLOR`, waits for an `ARM` acknowledgement, and updates the count after successful sequence completion. Each bin accepts three objects at its original fixed destination. [Bin capacity FSM](SLOT_TRACKING_AND_FSM.md)
 
 
 This document formalizes the **existing** Raspberry Pi and Arduino behavior. The source controller is procedural Python/C++, not Stateflow. A MATLAB function (`MATLAB/seven_fsm.m`) generates transition tables, state graphs, and timed route traces **without requiring Stateflow**. The diagrams are documentation models; MATLAB is not controlling the real robot.
@@ -77,5 +77,3 @@ This creates `MATLAB/outputs/fsm/` containing:
 ## 4. Interfaces and missing feedback
 
 The Pi FSM and Arduino FSM communicate using ASCII serial commands. Vision operates **once** per Python invocation, whereas Arduino `loop()` updates active movement non-blockingly. The only completion signal sent to Pi is a string printed by firmware. There are no limit switches, gripper contact sensors, joint encoders, or direct pose measurements, so there is no feedback-driven correction transition in the model.
-
-If a future course extension requires a **Stateflow** chart, these CSV transition tables and Mermaid diagrams are the precise starting specification. An automatically generated real-time Stateflow controller is **not** included or claimed.

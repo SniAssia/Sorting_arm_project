@@ -47,7 +47,7 @@ def load_rows(color, file_override=None):
     if file_override:
         source = Path(file_override).expanduser().resolve()
     else:
-        # If user has run the MATLAB project in this ZIP, use their fresh results.
+        # Prefer locally generated MATLAB trajectories.
         generated = ROOT.parent / "MATLAB" / "outputs" / color / "commands.csv"
         source = generated if generated.exists() else ROOT / "trajectories" / f"{color}_commands.csv"
     if not source.exists():

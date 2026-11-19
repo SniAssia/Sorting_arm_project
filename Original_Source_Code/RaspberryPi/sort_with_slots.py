@@ -1,6 +1,5 @@
-"""SEVEN capacity-aware color sorter (new optional controller).
+"""SEVEN color sorter with persistent bin occupancy.
 
-Original_Source_Code/RaspberryPi/color_sorter_original.py is preserved unchanged.
 Each bin holds three objects at one firmware-defined destination. Counters track
 completed command sequences and explicit operator reconciliation. Run --help.
 
