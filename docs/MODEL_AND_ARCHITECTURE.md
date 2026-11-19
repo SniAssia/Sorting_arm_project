@@ -1,5 +1,8 @@
 # Architecture and mathematical model
 
+> **Scope note (three-slot extension):** This document describes the verified original one-drop-per-color route unless explicitly stated otherwise. The optional persistent three-slot Raspberry Pi controller and its MATLAB FSM are documented in [`SLOT_TRACKING_AND_FSM.md`](SLOT_TRACKING_AND_FSM.md). Six additional physical target coordinates are still uncalibrated; no nine-slot hardware validation is claimed.
+
+
 ## 1. Hardware/software boundaries
 
 ```text

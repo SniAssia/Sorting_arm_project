@@ -1,18 +1,47 @@
-# Embedded Systems presentation submission checklist
+# Evidence and submission verification for SEVEN
 
-Announcement specifies **10 minutes presentation + 2–3 minutes Q&A**. Group leader should email the presentation, technical report and capsule demonstration video to **sadek.belamfedel@um6p.ma** and copy **Oussama.ziadi@um6p.ma**. Include **group number and project title**. The announced cutoff is **Sunday, 22 November 2026 at 00:00**, which is the very beginning of Sunday; submit beforehand on Saturday 21 November to avoid ambiguity.
+The code package is organized as a supplementary engineering deliverable. The professor's presentation notice separately requires the **presentation file, project report, and capsule video**. Group details and experimental evidence must be supplied before claiming a fully finalized submission.
 
-## Team must complete (not generated or invented by the source package)
+## Team information and physical evidence
 
-- [ ] Enter group number and members in root `README.md` and title slide.
-- [ ] Film functioning physical pick-and-place, plus RED, GREEN and BLUE evidence.
-- [ ] Run and record actual physical trials. Fill `docs/physical_test_template.csv`.
-- [ ] Check link measurements and calibrations; document any discrepancy with nominal 12 cm links.
-- [ ] Run MATLAB self-tests, FSM tests, and Simulink scope captures.
-- [ ] Run PyBullet GUI demo; capture a representative screenshot or short video.
-- [ ] Write final report with architecture, schematics/wiring, kinematics, FSMs, experimental results, limitations, attribution.
-- [ ] Prepare slides for 10 minutes and rehearse Q&A.
-- [ ] Produce capsule demonstration video; verify it plays and is shared/attached accessibly.
-- [ ] Email presentation + report + capsule video with requested subject/content and CC.
+- [ ] Enter **group number** and **member names** in `README.md`, report, and slides.
+- [ ] Include photograph(s) of the fully assembled arm, Pi camera, Arduino, power wiring, and three sorting bins.
+- [ ] Include representative `classification_result.jpg` and `roi.jpg` images, after checking private information.
+- [ ] Collect repeated **physical** red/green/blue sorting trials and record successes, placement errors, and elapsed time in `docs/physical_test_template.csv`.
+- [ ] Calibrate the six additional physical bin positions plus corresponding approach poses; replace all `null` entries in `config/slots.json` before demonstrating full three-slot operation.
+- [ ] Verify that the counter increments only after correct physical placement; test FULL, UNKNOWN, and pending-recovery behavior on hardware.
+- [ ] Confirm all servo clearance, gripper alignment, stable power, and mechanical limits. The software 0..180 limits are not collision-safe limits.
 
-This ZIP is a **supplementary engineering source and modeling deliverable**. The presentation/report/video requested by the professor are still separate deliverables. Do not claim physical performance numbers until measured.
+## Modeling and reproducibility evidence
+
+- [ ] Capture output of `python tools/preflight.py` and `python -m unittest discover -s tests -v`.
+- [ ] Run and capture `run_SEVEN_project`, `seven_self_test`, `seven_fsm`, `seven_fsm_self_test` in MATLAB.
+- [ ] Run and capture `seven_slot_fsm` and `seven_slot_fsm_self_test` (FSM extension).
+- [ ] Include generated mathematical results and motion plots, with units and clear labels.
+- [ ] Run `seven_build_simulink`; include three scope figures and label first-order servo lag as **hypothetical**.
+- [ ] Run PyBullet simulation; include a generic 3D frame and label scripted attachment and original slot-1 data accurately.
+
+## Final deliverables and presentation
+
+- [ ] Update LaTeX report with three-slot extension, photographs, physical result statistics, and stated limitations.
+- [ ] Produce capsule video showcasing the **physical** color-to-sort workflow and (if calibrated) sequential slot placement.
+- [ ] Prepare 10-minute presentation and practice 2–3 minutes of questions.
+- [ ] Verify the rubric criteria: story/preparation 15, clarity 15, slides 15, mastery/timing 15, engagement 10, questions 15, audience understanding 15.
+- [ ] Email required presentation, report and video with group number and project title to **sadek.belamfedel@um6p.ma**, CC **Oussama.ziadi@um6p.ma**.
+- [ ] Submit by **22 November 2026 at 00:00**, preferably on Saturday 21 November before midnight.
+
+## Evidence worth placing in the report
+
+| Evidence | Suggested origin | Purpose |
+|---|---|---|
+| Arm and connection photos | Team phone/camera | Built hardware, power topology |
+| Camera ROI / HSV outputs | `runtime/captures/` or baseline script's saved JPEGs | Actual classification decision |
+| Trial log and success rate | `docs/physical_test_template.csv` filled from physical experiments | Real sorting reliability |
+| Nine-slot calibration measurements | `config/slots.json` and signed measurement log | Reachable physical drop targets |
+| MATLAB FK/IK + trajectories | `MATLAB/outputs/` | Numerical verification |
+| Original and capacity FSM figures | `docs/diagrams/` + MATLAB FSM outputs | Embedded-system decision logic |
+| Simulink scopes | `docs/evidence/` or fresh captures | Illustrative servo response |
+| PyBullet GUI screenshot | Generated by `--screenshot` | Generic 3D visualized command replay |
+| Team capsule video | Team recording | Demonstrate real, not simulated, behavior |
+
+Do not report any success rate, exact physical timing, or nine-slot demonstration that was not actually observed and logged.

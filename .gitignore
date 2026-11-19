@@ -1,0 +1,58 @@
+# IDE / operating system / caches
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+*.bak
+
+# Private runtime state, automatic camera captures, logs
+runtime/**
+!runtime/.gitkeep
+**/classification_result.jpg
+**/roi.jpg
+**/captures/
+**/*_private.*
+private/
+secrets/
+credentials/
+*.key
+*.pem
+*.p12
+
+# Automatically exported simulation outputs; keep checked-in baseline command data
+MATLAB/outputs/**
+!MATLAB/outputs/RED/
+!MATLAB/outputs/GREEN/
+!MATLAB/outputs/BLUE/
+!MATLAB/outputs/RED/commands.csv
+!MATLAB/outputs/GREEN/commands.csv
+!MATLAB/outputs/BLUE/commands.csv
+PyBullet/screenshots/
+*.asv
+*.slxc
+slprj/
+
+# Hardware-specific local files / binaries
+*.hex
+*.elf
+*.bin
+*.stl
+*.STL
+STL_files/
+START_HERE.md
+
+# Presentation/video/media created by team: review before committing
+*.mp4
+*.mov
+*.avi
+recordings/

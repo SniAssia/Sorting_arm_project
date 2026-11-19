@@ -12,5 +12,7 @@ try {
         py test_urdf.py
         if ($LASTEXITCODE -ne 0) { throw 'URDF transform verification failed.' }
     } finally { Pop-Location }
-    Write-Host 'PASS: all offline checks passed. Continue with START_HERE.md.' -ForegroundColor Green
+    py -m unittest discover -s tests -v
+    if ($LASTEXITCODE -ne 0) { throw 'Capacity controller unit tests failed.' }
+    Write-Host 'PASS: offline checks and counter-unit tests passed. Refer to README.md.' -ForegroundColor Green
 } finally { Pop-Location }

@@ -1,5 +1,8 @@
 # Finite-state-machine specifications
 
+> **Scope note (three-slot extension):** This document describes the verified original one-drop-per-color route unless explicitly stated otherwise. The optional persistent three-slot Raspberry Pi controller and its MATLAB FSM are documented in [`SLOT_TRACKING_AND_FSM.md`](SLOT_TRACKING_AND_FSM.md). Six additional physical target coordinates are still uncalibrated; no nine-slot hardware validation is claimed.
+
+
 This document formalizes the **existing** Raspberry Pi and Arduino behavior. The source controller is procedural Python/C++, not Stateflow. A MATLAB function (`MATLAB/seven_fsm.m`) generates transition tables, state graphs, and timed route traces **without requiring Stateflow**. The diagrams are documentation models; MATLAB is not controlling the real robot.
 
 ## 1. Raspberry Pi: one-shot perception and command FSM

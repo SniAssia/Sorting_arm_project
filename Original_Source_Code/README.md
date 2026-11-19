@@ -7,3 +7,6 @@
 **Do not replace these files with upstream GitHub firmware.** The upstream sketch uses different commands. The real camera script sends `CHECK RED`, `ARM`, and `RUN RED` (similarly for green/blue) to the team's own Arduino sketch.
 
 Hardware warning: original sketch uses general 0–180° commanded limits, not measured mechanical limits. The serial `STOP` command holds servo output; it does not physically disconnect servo power. Recalibrate and ensure clearance before activating motors.
+
+
+**Three-slot extension:** `RaspberryPi/sort_with_slots.py` is a NEW optional controller. It is **not** part of the original checksum-protected source. It uses the same HSV rules and `SET/CHECK/ARM/RUN` serial commands with persistent operator-confirmed counters; see the root `README.md` and `docs/SLOT_TRACKING_AND_FSM.md`.
