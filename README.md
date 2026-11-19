@@ -2,6 +2,7 @@
 
 **Embedded Systems | UM6P College of Computing**  
 **Group members:** Assia Snissi, Khadija Lekbiri, Manal Zaidi, Rhita Rhallami 
+
 **System status:** Working color-sorting MVP reported on physical hardware; validated baseline mathematical and PyBullet command replay; three-slot occupancy extension implemented in Raspberry Pi software, pending calibration and physical trials.
 
 ## Project summary
