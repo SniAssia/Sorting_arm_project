@@ -1,6 +1,6 @@
 # Verification plan and evidence
 
-> **Scope note (three-slot extension):** This document describes the verified original one-drop-per-color route unless explicitly stated otherwise. The optional persistent three-slot Raspberry Pi controller and its MATLAB FSM are documented in [`SLOT_TRACKING_AND_FSM.md`](SLOT_TRACKING_AND_FSM.md). Six additional physical target coordinates are still uncalibrated; no nine-slot hardware validation is claimed.
+The baseline uses one firmware route per color. The enhanced controller checks a persistent count before `CHECK COLOR`, waits for an `ARM` acknowledgement, and updates the count after successful sequence completion. Each bin accepts three objects at its original fixed destination. [Bin capacity FSM](SLOT_TRACKING_AND_FSM.md)
 
 
 ## 1. Tests included in the package
@@ -12,7 +12,7 @@
 | URDF transform-chain | from `PyBullet/`: `py test_urdf.py` | Generic arm joint-frame math agrees with the Arduino FK |
 | MATLAB kinematics | `seven_self_test` | Nine configured poses and three 8-step routes pass model assertions |
 | MATLAB finite state machines | `seven_fsm_self_test` | FSM route traces have 8 moves, 2 gripper events, 7 waits |
-| Three-slot controller Python tests | `python -m unittest discover -s tests -v` | Software-only capacity, FULL/uncalibrated blocking, persistence and mocked `SET/CHECK/ARM/RUN` |
+| Bin capacity controller tests | `python -m unittest discover -s tests -v` | Packaged fixed routes, FULL rejection, persistence, timeout, duplicate completion, reset and interprocess exclusion with mocked serial |
 | Capacity FSM | `seven_slot_fsm`; `seven_slot_fsm_self_test` | Abstract state transitions, PENDING reconciliation and 3-per-color invariant |
 | Simulink | `seven_build_simulink`; run generated model | Scopes compare commands and first-order *assumed* response |
 | PyBullet GUI | `py simulate.py --color RED` (and other colors) | Visualizes generic robot and scripted pick-and-place route |
@@ -40,4 +40,4 @@ Known model risks: no physical joint encoders, no collision detection, no verifi
 
 ## Capacity extension validation boundary
 
-The new Raspberry Pi application has been tested without hardware, using a synthetic in-memory three-slot configuration and a fake Arduino that returns the expected serial acknowledgments. The packaged `config/slots.json` intentionally contains only the original slot-1 coordinates for each bin, with slots 2 and 3 unconfigured. The software blocks real motion to missing positions, and a command completion cannot automatically mark a physical slot as occupied. A team member must collect calibration and repeated sorting results to claim that the three-slot extension works physically.
+Mocked serial tests exercise the production CLI and inspect the persistent counter separately from the physical outcome. On hardware, log the observed deposit alongside the completion message, compare estimated and observed occupancy after each of three runs to the same waypoint, then verify fourth-object rejection and confirmed reset after emptying the bin.

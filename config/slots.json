@@ -1,21 +1,17 @@
 {
-  "schema_version": 1,
-  "units": "cm",
+  "schema_version": 2,
   "bins": {
-    "RED": [
-      {"above": [13.14, 6.13, 8.0], "drop": [13.14, 6.13, 2.0]},
-      null,
-      null
-    ],
-    "GREEN": [
-      {"above": [13.14, -6.13, 8.0], "drop": [13.14, -6.13, 2.0]},
-      null,
-      null
-    ],
-    "BLUE": [
-      {"above": [3.7528, -14.0055, 8.0], "drop": [3.7528, -14.0055, 2.0]},
-      null,
-      null
-    ]
+    "RED": {
+      "capacity": 3,
+      "destination": "DR"
+    },
+    "GREEN": {
+      "capacity": 3,
+      "destination": "DG"
+    },
+    "BLUE": {
+      "capacity": 3,
+      "destination": "DB"
+    }
   }
 }

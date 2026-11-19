@@ -1,6 +1,6 @@
 # Architecture and mathematical model
 
-> **Scope note (three-slot extension):** This document describes the verified original one-drop-per-color route unless explicitly stated otherwise. The optional persistent three-slot Raspberry Pi controller and its MATLAB FSM are documented in [`SLOT_TRACKING_AND_FSM.md`](SLOT_TRACKING_AND_FSM.md). Six additional physical target coordinates are still uncalibrated; no nine-slot hardware validation is claimed.
+The baseline uses one firmware route per color. The enhanced controller checks a persistent count before `CHECK COLOR`, waits for an `ARM` acknowledgement, and updates the count after successful sequence completion. Each bin accepts three objects at its original fixed destination. [Bin capacity FSM](SLOT_TRACKING_AND_FSM.md)
 
 
 ## 1. Hardware/software boundaries

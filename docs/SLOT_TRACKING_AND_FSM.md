@@ -1,80 +1,44 @@
-# Three-spot capacity controller: specification and state machines
+# Bin capacity tracking and finite-state machine
 
-## Scope and provenance
+Each color has one bin, one calibrated firmware destination and a capacity of three objects. RED always uses DR, GREEN uses DG and BLUE uses DB. The Pi reads the count to decide whether to allow the route. The firmware supplies the coordinates and runs the same eight waypoints for every accepted object of a given color.
 
-This document describes the **new optional Raspberry Pi controller** `Original_Source_Code/RaspberryPi/sort_with_slots.py`. It supplements, and does not replace, the original single-drop workflow. The original Arduino commands remain intact. The extension has been tested with a software-only fake Arduino serial interface, **not yet on the complete physical nine-slot layout**.
+![Bin capacity controller transitions](diagrams/slot_tracker_fsm.png)
 
-## State and invariants
+## Normal sequence
 
-The state file `runtime/occupancy.json` holds `counts.RED`, `counts.GREEN`, `counts.BLUE` and `pending`:
+| State | Controller action |
+|---|---|
+| COLOR_DETECTED | Classify a single camera frame or accept the supplied test color. UNKNOWN ends the request before serial access. |
+| CAPACITY_CHECK | Read the selected bin count. A count of three returns FULL. A pending operation blocks further sorting. |
+| ROUTE_VALIDATION | Send `CHECK COLOR`. A rejection or timeout ends the request before motion. CHECK tests modeled reachability. |
+| CONFIRMATION | Ask the operator to inspect the workspace and approve. Cancellation preserves all counts. |
+| EXECUTION | Atomically persist the pending record before sending `ARM`. Await the acknowledgement, send `RUN COLOR`, and monitor the serial stream. |
+| COMPLETION | Accept the firmware’s full route-complete line after the first waypoint indication for this run. The message confirms that the commanded sequence finished. Actual pickup and deposit require physical observation. |
+| COUNTER_UPDATE | Increment only the pending color and clear its pending record in one atomic file replacement. One run can commit only once. |
 
-- Each count is an integer between **0 and 3** and represents **operator-confirmed** occupancy, not actual sensor readings.
-- `count = 0` selects slot 1, `count = 1` selects slot 2, and `count = 2` selects slot 3. `count = 3` means **FULL**.
-- A slot with `null` calibration is **UNCALIBRATED** and not executable.
-- The next slot has two measured Cartesian positions in centimetres: `above` and `drop`.
-- A `pending` placement is persisted **before** `ARM` and `RUN`. It blocks any new sort until operator reconciliation.
-- The counter increments only on operator confirmation after command completion or explicit recovery with `--resolve-pending placed --confirm`.
-- A timeout/error leaves the transaction pending, and no count is incremented automatically.
-- Serial route completion is not physical confirmation of pickup/release.
+## Interruption and manual actions
 
-### Capacity-aware Raspberry Pi flow
+A per-state-file operating-system lock covers the full operation, including classification, approval and persistence. All operators controlling the same arm must use the same state file. Read-only status can display the last saved snapshot while a sort runs. Use the enhanced controller exclusively when tracking occupancy, as the baseline script and serial monitor do not participate in its accounting.
 
-```mermaid
-flowchart TD
-    A[Capture ROI or controlled color input] --> B{Valid supported color?}
-    B -- No --> Z[No command]
-    B -- Yes --> C{Pending previous operation?}
-    C -- Yes --> P[Block; inspect and reconcile]
-    C -- No --> D{Bin count = 3?}
-    D -- Yes --> F[FULL: reject]
-    D -- No --> E{Next slot calibrated?}
-    E -- No --> U[UNCALIBRATED: reject]
-    E -- Yes --> S[SET ABOVE and DROP]
-    S --> K{SET acknowledged and CHECK OK?}
-    K -- No --> X[Error; no ARM]
-    K -- Yes --> H{Operator approves?}
-    H -- No --> Y[Cancel]
-    H -- Yes --> T[Persist pending transaction]
-    T --> R[ARM; RUN color; monitor serial]
-    R --> Q{Command completion observed?}
-    Q -- No --> P
-    Q -- Yes --> V{Object visibly in correct slot?}
-    V -- No or uncertain --> P
-    V -- Yes --> I[Increment color count; clear pending]
-```
+An execution error, disconnect, timeout or process exit after the pending record was saved leaves the operation available for review. A monitoring timeout can occur while the robot is still moving. Wait until motion has stopped and inspect the gripper and destination bin. Use exactly one recovery command for the pending operation.
 
-The Arduino itself still performs the original eight programmed motions and has no occupancy-aware sensor. It receives dynamically updated destinations with `SET AR/DR`, `SET AG/DG` or `SET AB/DB`, then executes `CHECK COLOR` and `RUN COLOR`.
+| Confirmed operator action | Effect |
+|---|---|
+| `--resolve-pending placed --confirm` | Count the inspected deposit once and clear pending. |
+| `--resolve-pending not-placed --confirm` | Clear pending and preserve the count. |
+| `--reset RED --confirm` | After emptying RED, set its count to zero. GREEN and BLUE also support individual reset. |
+| `--reset ALL --confirm` | After emptying all bins, set all counts to zero. |
 
-## Serial protocol, in order
+Reset requires an idle controller and no pending operation. Recovery requires an idle controller and a pending record. Because there is no occupancy sensor, a completed run with a missed grasp can leave the estimate above the physical count. Empty that bin and use the confirmed reset to restore agreement.
 
-1. Open serial at 115200; Arduino may reset on connection; wait for startup.
-2. `SET [above pose] x y z`; require `SAVED [pose]` acknowledgement.
-3. `SET [drop pose] x y z`; require the corresponding `SAVED` acknowledgement.
-4. `CHECK COLOR`; require `Route model check OK` (reachability only).
-5. Ask operator to inspect the physical workspace and approve.
-6. Atomically save pending `{color,slot,started_utc}`.
-7. Send `ARM`, require `ARMED:` response. This can move the physical servos!
-8. Send `RUN COLOR`, monitor for a route-start indication, errors, then command-completion line.
-9. Ask operator to verify actual placement. Only a confirmed placement advances the count.
+## Configuration and persistence
 
-No `STOP` command in this firmware removes power. On a timeout or exception, mechanically safeguard the robot, inspect the bin, and resolve the pending transaction before resuming.
+The public controller filename, configuration path and CLI options are retained. Version 2 of `config/slots.json` stores a capacity and a firmware waypoint name per color. The supplied file replaces the previous coordinate-array configuration. A custom file supplied with `--slots` must use the new format. The controller validates each mapping before use. On a firmware session previously modified via serial, restore the calibrated sketch defaults before sorting.
 
-## MATLAB finite-state machine
+Keep `runtime/occupancy.json` when upgrading. Its schema stays at version 1. Existing counts and pending records retain their meaning. The historical pending field `slot` records the expected count after a commit. The controller checks it against the stored count and never uses it to calculate a coordinate. Invalid or inconsistent files stop the operation for inspection. The sibling lock file can remain on disk between runs. The operating system releases the lock when the owning process exits.
 
-The submission contains `MATLAB/seven_slot_fsm.m`, which creates a CSV transition table and a `digraph` state diagram under `MATLAB/outputs/fsm/`. `seven_slot_fsm_self_test.m` checks the FULL/UNCALIBRATED/PENDING transitions and the logical three-per-color capacity invariant.
+## Modeling and verification
 
-The MATLAB FSM is a **formalized controller description**, not a deployed Stateflow controller, motion-dynamics model, or simulation of physical bin occupancy. The existing `MATLAB/seven_fsm.m` still documents the legacy single-slot camera and Arduino route FSMs.
+`MATLAB/seven_slot_fsm.m` exports the transition table, diagram and three-per-color logical trace under `MATLAB/outputs/fsm/`. The associated self-test checks the normal path, rejection, pending review and reset transitions. The original perception and motion FSMs describe the baseline robot independently.
 
-## Required commissioning before nine-slot physical demonstrations
-
-- Measure six additional slot coordinates and six associated safe approach points, relative to the shoulder pivot.
-- Replace each `null` in `config/slots.json` with numeric `above` and `drop` coordinates.
-- Check every pose with `--verify-config`, Arduino `CHECK`, and physical manual clearance verification; numerical reachability alone is insufficient.
-- Test whether the end effector can descend and withdraw without contacting adjacent stored objects, bin walls, wiring, or base.
-- Run multiple actual trials for every color and occupied-position index; document mistaken color detection, failed grasps, wrong-bin placements and physical timing.
-- Ensure only one Raspberry Pi sorting-controller instance is active; persistence uses atomic writes but is not a concurrent database transaction system.
-- Physically empty a bin before resetting its software counter.
-
-## Test evidence and interpretation
-
-`python -m unittest discover -s tests -v` runs synthetic-coordinate and fake-serial tests. Synthetic coordinates are deliberately kept **inside the test module** and are not exported to `config/slots.json`. Passing the test suite proves that the counting, state persistence and command sequencing logic behave as specified under tested conditions; it does **not** demonstrate a measured nine-slot system.
+The hardware-free Python tests exercise the CLI using the packaged bin definitions, temporary state files and a mocked Arduino serial port. Physical clearance and placement reliability as the three bins fill still require observed trials. [Validation plan](VALIDATION.md)

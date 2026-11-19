@@ -1,149 +1,203 @@
-"""Hardware-free tests of the optional Raspberry Pi three-slot controller."""
-import copy
+"""Exercise the production CLI with a scripted serial peer and an isolated state file."""
+import io
 import json
-import math
+import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack, redirect_stderr, redirect_stdout
+from itertools import count
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "Original_Source_Code" / "RaspberryPi"))
-import sort_with_slots as ss  # noqa: E402
+import sort_with_slots as ss
+
+START = "STEP 1/8  AP"
+DONE = "Color route complete (gripper close/release commanded)."
 
 
 class FakeArduino:
     def __init__(self):
         self.commands = []
-        self.responses = []
+        self.queue = []
+        self.check = ["Route model check OK (NOT a collision check)."]
+        self.arm = ["ARMED: joints 105/73/60; gripper 90"]
+        self.route = [START, DONE]
+        self.on_write = lambda command: None
 
-    def write(self, payload):
-        command = payload.decode().strip()
+    def write(self, data):
+        command = data.decode().strip()
         self.commands.append(command)
-        bits = command.split()
-        if bits[0] == "SET":
-            self.responses.append(f"SAVED {bits[1]} b=105.0 s=73.0 e=60.0\n".encode())
-        elif bits[0] == "CHECK":
-            self.responses.append(b"Route model check OK (NOT a collision check).\n")
-        elif command == "ARM":
-            self.responses.append(b"ARMED: joints 105/73/60; gripper 90\n")
-        elif bits[0] == "RUN":
-            self.responses += [b"STEP 1/8 AP\n", b"MOVING toward model angles: b=15\n",
-                               b"Color route complete (gripper close/release commanded).\n"]
-        else:
-            self.responses.append(b"ERR: unexpected command\n")
+        self.on_write(command)
+        self.queue.extend({"CHECK": self.check, "ARM": self.arm,
+                           "RUN": self.route}[command.split()[0]])
 
     def flush(self):
         pass
 
+    def reset_input_buffer(self):
+        self.queue.clear()
+
     def readline(self):
-        return self.responses.pop(0) if self.responses else b""
+        return (self.queue.pop(0) + "\n").encode() if self.queue else b""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
 
 
-def fully_calibrated(slots):
-    """Synthetic test points, never to be used on actual hardware."""
-    result = copy.deepcopy(slots)
-    for color in ss.COLORS:
-        for i in (1, 2):
-            original = result["bins"][color][0]
-            # Small Y offsets within the software IK bounds. Synthetic only.
-            above = list(original["above"])
-            drop = list(original["drop"])
-            above[1] += 0.2 * i
-            drop[1] += 0.2 * i
-            result["bins"][color][i] = {"above": above, "drop": drop}
-            for point in (above, drop):
-                ss.validate_workspace(point, "synthetic test")
-    return result
-
-
-class SlotSorterTests(unittest.TestCase):
+class BinCapacityTests(unittest.TestCase):
     def setUp(self):
-        self.slots = ss.load_slots()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.path = Path(tmp.name) / "occupancy.json"
+        self.fake = FakeArduino()
+        self.serial = Mock()
+        self.serial.Serial.return_value = self.fake
+        stack = ExitStack()
+        self.addCleanup(stack.close)
+        stack.enter_context(patch.dict(sys.modules, serial=self.serial))
+        stack.enter_context(patch.object(ss.time, "sleep"))
+        stack.enter_context(patch.object(ss.time, "monotonic", side_effect=count(step=0.25)))
+        self.answer = stack.enter_context(patch("builtins.input", return_value="yes"))
+        self.output = stack.enter_context(redirect_stdout(io.StringIO()))
+        stack.enter_context(redirect_stderr(self.output))
 
-    def test_new_counts_and_first_slots(self):
-        state = ss.new_state()
-        self.assertEqual(state["counts"], dict.fromkeys(ss.COLORS, 0))
-        for color in ss.COLORS:
-            slot, positions = ss.select_slot(state, self.slots, color)
-            self.assertEqual(slot, 1)
-            self.assertEqual(len(positions["above"]), 3)
+    def cli(self, *args):
+        return ss.main(["--state-file", str(self.path), *args])
 
-    def test_slots_2_and_3_locked_without_physical_calibration(self):
-        state = ss.new_state()
-        state["counts"]["RED"] = 1
-        with self.assertRaisesRegex(ss.SafetyError, "NOT calibrated"):
-            ss.select_slot(state, self.slots, "RED")
-        state["counts"]["RED"] = 3
-        with self.assertRaisesRegex(ss.SafetyError, "FULL"):
-            ss.select_slot(state, self.slots, "RED")
+    def state(self):
+        return ss.load_state(self.path)
 
-    def test_three_per_color_and_fourth_blocked(self):
-        slots = fully_calibrated(self.slots)
-        state = ss.new_state()
-        for color in ss.COLORS:
-            for spot in (1, 2, 3):
-                selected, _ = ss.select_slot(state, slots, color)
-                self.assertEqual(spot, selected)
-                ss.mark_pending(state, color, selected)
-                with self.assertRaisesRegex(ss.SafetyError, "unresolved"):
-                    ss.select_slot(state, slots, color)
-                ss.resolve_pending(state, "placed")
-            self.assertEqual(state["counts"][color], 3)
-            with self.assertRaisesRegex(ss.SafetyError, "FULL"):
-                ss.select_slot(state, slots, color)
+    def test_capacity_and_fixed_firmware_destinations(self):
+        bins = ss.load_slots()["bins"]
+        expected = dict.fromkeys(ss.COLORS, 0)
+        for color, dest in zip(ss.COLORS, ("DR", "DG", "DB")):
+            self.assertEqual(bins[color], {"capacity": 3, "destination": dest})
+            for _ in range(3):
+                self.assertEqual(ss.validate_capacity(self.state(), {"bins": bins}, color), dest)
+                self.fake.commands.clear()
+                self.assertEqual(self.cli("--color", color), 0)
+                self.assertEqual(self.fake.commands, [f"CHECK {color}", "ARM", f"RUN {color}"])
+                expected[color] += 1
+                self.assertEqual(self.state()["counts"], expected)
+            self.serial.Serial.reset_mock()
+            self.assertEqual(self.cli("--color", color), 2)
+            self.assertIn(f"{color} bin FULL", self.output.getvalue())
+            self.serial.Serial.assert_not_called()
 
-    def test_not_placed_does_not_advance(self):
-        state = ss.new_state()
-        ss.mark_pending(state, "GREEN", 1)
-        ss.resolve_pending(state, "not-placed")
-        self.assertEqual(state["counts"]["GREEN"], 0)
-        self.assertIsNone(state["pending"])
+    def test_camera_dispatch_and_unknown(self):
+        with patch.object(ss, "detect_color", side_effect=[("UNKNOWN", {}), ("BLUE", {})]):
+            self.assertEqual(self.cli(), 0)
+            self.serial.Serial.assert_not_called()
+            self.assertEqual(self.cli(), 0)
+        self.assertEqual(self.fake.commands, ["CHECK BLUE", "ARM", "RUN BLUE"])
 
-    def test_pending_state_survives_reload(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            file = Path(tmp) / "runtime" / "occupancy.json"
-            state = ss.new_state()
-            ss.mark_pending(state, "BLUE", 1)
-            ss.save_state(file, state)
-            reloaded = ss.load_state(file)
-            self.assertEqual(reloaded["pending"]["color"], "BLUE")
-            ss.resolve_pending(reloaded, "placed")
-            ss.save_state(file, reloaded)
-            self.assertEqual(ss.load_state(file)["counts"]["BLUE"], 1)
+    def test_restart_and_duplicate_completion(self):
+        self.fake.route.append(DONE)
+        self.assertEqual(self.cli("--color", "RED"), 0)
+        self.assertEqual(self.cli("--resolve-pending", "placed", "--confirm"), 2)
+        result = subprocess.run([sys.executable, ss.__file__, "--state-file", str(self.path),
+                                 "--status"], check=True, text=True, capture_output=True)
+        self.assertRegex(result.stdout, r"RED\s+1/3 at DR")
+        self.assertIsNone(self.state()["pending"])
 
-    def test_fake_serial_protocol_set_before_check_arm_run(self):
-        fake = FakeArduino()
-        approved = ss.execute_route(fake, "RED", self.slots["bins"]["RED"][0],
-                                    confirm=lambda _: "yes")
-        self.assertTrue(approved)
-        self.assertTrue(ss.start_and_monitor(fake, "RED", timeout_s=1.0))
-        self.assertEqual([p.split()[0] for p in fake.commands],
-                         ["SET", "SET", "CHECK", "ARM", "RUN"])
-        self.assertEqual(fake.commands[0].split()[1], "AR")
-        self.assertEqual(fake.commands[1].split()[1], "DR")
+    def test_cancel_rejection_and_check_timeout(self):
+        self.answer.return_value = "no"
+        for response, code in [(self.fake.check, 0), (["ERR: route rejected"], 2), ([], 2)]:
+            self.fake.commands.clear()
+            self.fake.check = response
+            self.assertEqual(self.cli("--color", "GREEN"), code)
+            self.assertEqual(self.fake.commands, ["CHECK GREEN"])
+            self.assertEqual(self.state(), ss.new_state())
 
-    def test_fake_serial_user_declines(self):
-        fake = FakeArduino()
-        approved = ss.execute_route(fake, "GREEN", self.slots["bins"]["GREEN"][0],
-                                    confirm=lambda _: "no")
-        self.assertFalse(approved)
-        self.assertEqual([p.split()[0] for p in fake.commands], ["SET", "SET", "CHECK"])
+    def test_uncertain_runs_require_explicit_inspection(self):
+        for replies in ([START], [DONE], [START, "ERR: movement"], [START, "partial " + DONE]):
+            with self.subTest(replies=replies):
+                self.fake.route = replies
+                self.assertEqual(self.cli("--color", "GREEN"), 2)
+                self.assertEqual(self.state()["counts"]["GREEN"], 0)
+                self.assertEqual(self.state()["pending"]["color"], "GREEN")
+                self.assertEqual(self.cli("--color", "BLUE"), 2)
+                self.assertEqual(self.cli("--reset", "ALL", "--confirm"), 2)
+                self.assertEqual(self.cli("--resolve-pending", "placed"), 2)
+                self.assertEqual(self.cli("--resolve-pending", "not-placed", "--confirm"), 0)
 
-    def test_cli_dry_run_does_not_write_state(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            state = Path(tmp) / "state.json"
-            self.assertEqual(ss.main(["--color", "RED", "--dry-run", "--state-file", str(state)]), 0)
-            self.assertFalse(state.exists())
+    def test_pending_precedes_arm_and_survives_disconnect(self):
+        def disconnect(command):
+            if command == "ARM":
+                self.assertEqual(self.state()["pending"]["color"], "BLUE")
+                raise OSError("USB disconnected")
+        self.fake.on_write = disconnect
+        self.assertEqual(self.cli("--color", "BLUE"), 2)
+        self.assertEqual(self.state()["counts"]["BLUE"], 0)
+        self.assertEqual(self.cli("--resolve-pending", "placed", "--confirm"), 0)
+        self.assertEqual(self.state()["counts"]["BLUE"], 1)
+        self.assertEqual(self.cli("--resolve-pending", "placed", "--confirm"), 2)
+        self.assertEqual(self.state()["counts"]["BLUE"], 1)
 
-    def test_malformed_coordinate_rejected(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            bad = copy.deepcopy(self.slots)
-            bad["bins"]["RED"][1] = {"above": [100, 100, 100], "drop": [100,100,95]}
-            file = Path(tmp) / "bad.json"
-            file.write_text(json.dumps(bad))
-            with self.assertRaises(ss.SafetyError):
-                ss.load_slots(file)
+    def test_failed_commit_leaves_pending_for_recovery(self):
+        original_save = ss.save_state
+
+        def fail_commit(path, state):
+            if state["pending"] is None:
+                raise OSError("Storage unavailable after sequence completion")
+            original_save(path, state)
+
+        with patch.object(ss, "save_state", side_effect=fail_commit):
+            self.assertEqual(self.cli("--color", "RED"), 2)
+        self.assertEqual(self.state()["counts"]["RED"], 0)
+        self.assertEqual(self.state()["pending"]["color"], "RED")
+        self.assertEqual(self.cli("--resolve-pending", "placed", "--confirm"), 0)
+        self.assertEqual(self.state()["counts"]["RED"], 1)
+
+    def test_other_process_cannot_modify_state_during_sort(self):
+        def concurrent(command):
+            if command.startswith("CHECK") or command.startswith("RUN"):
+                for args in (["--reset", "ALL", "--confirm"],
+                             ["--resolve-pending", "placed", "--confirm"]):
+                    other = subprocess.run([sys.executable, ss.__file__, "--state-file",
+                                            str(self.path), *args], capture_output=True, text=True)
+                    self.assertEqual(other.returncode, 2)
+                    self.assertIn("operation is active", other.stderr)
+        self.fake.on_write = concurrent
+        self.assertEqual(self.cli("--color", "RED"), 0)
+        self.assertEqual(self.state()["counts"]["RED"], 1)
+
+    def test_only_confirmed_reset_affects_selected_bin(self):
+        self.cli("--color", "BLUE")
+        self.cli("--color", "RED")
+        self.assertEqual(self.cli("--reset", "RED"), 2)
+        self.assertEqual(self.state()["counts"]["RED"], 1)
+        self.assertEqual(self.cli("--reset", "RED", "--confirm"), 0)
+        self.assertEqual(self.state()["counts"], {"RED": 0, "GREEN": 0, "BLUE": 1})
+
+    def test_legacy_pending_and_invalid_snapshot(self):
+        legacy = {"schema_version": 1, "counts": {"RED": 2, "GREEN": 0, "BLUE": 1},
+                  "pending": {"color": "RED", "slot": 3, "started_utc": "2026-01-01T00:00:00Z"}}
+        self.path.write_text(json.dumps(legacy))
+        self.assertEqual(self.cli("--color", "BLUE"), 2)
+        self.assertEqual(self.cli("--resolve-pending", "placed", "--confirm"), 0)
+        self.assertEqual(self.state()["counts"], {"RED": 3, "GREEN": 0, "BLUE": 1})
+        legacy["pending"]["slot"] = 1
+        invalid = json.dumps(legacy)
+        self.path.write_text(invalid)
+        self.assertEqual(self.cli("--reset", "ALL", "--confirm"), 2)
+        self.assertEqual(self.path.read_text(), invalid)
+
+    def test_preview_and_bad_config(self):
+        self.assertEqual(self.cli("--color", "BLUE", "--dry-run"), 0)
+        self.assertFalse(self.path.exists())
+        config = ss.load_slots()
+        config["bins"]["BLUE"]["destination"] = "DR"
+        file = self.path.with_name("bins.json")
+        file.write_text(json.dumps(config))
+        self.assertEqual(self.cli("--verify-config", "--slots", str(file)), 2)
+        self.serial.Serial.assert_not_called()
 
 
 if __name__ == "__main__":

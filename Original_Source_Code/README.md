@@ -9,4 +9,4 @@
 Hardware warning: original sketch uses general 0–180° commanded limits, not measured mechanical limits. The serial `STOP` command holds servo output; it does not physically disconnect servo power. Recalibrate and ensure clearance before activating motors.
 
 
-**Three-slot extension:** `RaspberryPi/sort_with_slots.py` is a NEW optional controller. It is **not** part of the original checksum-protected source. It uses the same HSV rules and `SET/CHECK/ARM/RUN` serial commands with persistent operator-confirmed counters; see the root `README.md` and `docs/SLOT_TRACKING_AND_FSM.md`.
+**Bin capacity tracking.** The optional `RaspberryPi/sort_with_slots.py` controller uses the original HSV rules and firmware destinations. It adds persistent counters, confirmed reset and recovery around `CHECK`, `ARM` and `RUN`. [Controller and FSM specification](../docs/SLOT_TRACKING_AND_FSM.md)

@@ -88,18 +88,15 @@ def main():
         assert max_error<0.02, f'{color} FK numerical deviation {max_error} cm'  # CSV precision
         print(f'[PASS] {color}: {len(csvrows)} samples, {times[-1]:.1f}s; grip {close_t:.1f}s, release {open_t:.1f}s; FK max {max_error:.8f}cm')
 
-    slots=json.loads((ROOT/'config/slots.json').read_text(encoding='utf-8'))
-    assert slots['schema_version']==1 and slots['units']=='cm'
-    assert set(slots['bins'])==set(COLORS)
-    for c in COLORS:
-        assert len(slots['bins'][c])==3
-        assert slots['bins'][c][0] is not None, f'{c} slot 1 missing'
-        assert slots['bins'][c][1] is None and slots['bins'][c][2] is None, 'Unmeasured physical slots must not be fabricated in submission'
+    config=json.loads((ROOT/'config/slots.json').read_text(encoding='utf-8'))
+    assert config['schema_version']==2
+    assert config['bins']=={color: {'capacity':3, 'destination':dest}
+                            for color,dest in zip(COLORS, ('DR','DG','DB'))}
     for rel in ['MATLAB/seven_slot_fsm.m','MATLAB/seven_slot_fsm_self_test.m',
                 'Original_Source_Code/RaspberryPi/sort_with_slots.py', 'tests/test_slot_sorter.py']:
         assert (ROOT/rel).is_file(), f'Missing counter extension: {rel}'
     assert not (ROOT/'START_HERE.md').exists(), 'Root README must be sole setup guide'
-    print('[PASS] Three-slot extension documented; uncalibrated slots 2/3 safely blocked')
+    print('[PASS] Three bins of capacity three reference the original firmware destinations')
 
     docs=['README.md','docs/SLOT_TRACKING_AND_FSM.md','docs/MODEL_AND_ARCHITECTURE.md',
           'docs/FINITE_STATE_MACHINES.md','docs/VALIDATION.md','docs/SUBMISSION_CHECKLIST.md']
