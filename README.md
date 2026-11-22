@@ -1,4 +1,4 @@
-# SEVEN | Vision-Guided Robotic Color Sorting
+# Automated Color-Sorting Arm
 
 **Embedded Systems | UM6P College of Computing**  
 **Group members:** Assia Snissi, Khadija Lekbiri, Manal Zaidi, Rhita Rhallami 
@@ -7,7 +7,7 @@
 
 ## Project summary
 
-This project demonstrates an **MVP of an industrial color-sorting system** using a 3D-printed SEVEN arm, an Arduino Uno, a Raspberry Pi camera, and Python/OpenCV. The camera classifies a single object as red, green, blue, or unknown. The Arduino moves the arm through eight programmed waypoints to pick up and route the object to its assigned bin. The Raspberry Pi controller tracks a maximum of **three objects per color bin** and retains independent occupancy estimates across restarts.
+This project demonstrates an **MVP of an industrial color-sorting system** using a 3D-printed   arm, an Arduino Uno, a Raspberry Pi camera, and Python/OpenCV. The camera classifies a single object as red, green, blue, or unknown. The Arduino moves the arm through eight programmed waypoints to pick up and route the object to its assigned bin. The Raspberry Pi controller tracks a maximum of **three objects per color bin** and retains independent occupancy estimates across restarts.
 
 All objects of a given color use the same calibrated firmware waypoint. The Pi checks capacity before opening the serial port. Once the count reaches three, it reports the bin as full.
 
@@ -103,7 +103,7 @@ PyBullet replays the exported firmware routes through a generic articulated URDF
 
 ## 4. Physical robot setup
 
-**Hardware:** SEVEN 3D-printed arm, Arduino Uno, four servo motors, Raspberry Pi and camera, external suitable servo supply, USB serial connection and common electrical ground. The original firmware maps base/shoulder/elbow/gripper to Arduino `D6/D9/D10/D11` respectively. Do **not** power four servos from the Arduino 5 V output.
+**Hardware:**   3D-printed arm, Arduino Uno, four servo motors, Raspberry Pi and camera, external suitable servo supply, USB serial connection and common electrical ground. The original firmware maps base/shoulder/elbow/gripper to Arduino `D6/D9/D10/D11` respectively. Do **not** power four servos from the Arduino 5 V output.
 
 1. With servo power controlled and mechanical clearances checked, upload `Original_Source_Code/Arduino/SEVEN_color_sorter_original/SEVEN_color_sorter_original.ino` via Arduino IDE (board/port per actual setup).
 2. Use Arduino Serial Monitor at **115200 baud**, newline termination. Check `HELP`, `POSES` and `CHECK RED/GREEN/BLUE` before motion.
