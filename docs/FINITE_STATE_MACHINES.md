@@ -1,79 +1,43 @@
-# Finite-state-machine specifications
+# Finite-state machines and serial coordination
 
-The Arduino provides one route per color. The bin capacity controller checks a persistent count before `CHECK COLOR`, waits for an `ARM` acknowledgement, and updates the count after successful sequence completion. Each bin accepts three objects at its original fixed destination. [Bin capacity FSM](SLOT_TRACKING_AND_FSM.md)
-
-
-This document formalizes the **existing** Raspberry Pi and Arduino behavior. The source controller is procedural Python/C++, not Stateflow. A MATLAB function (`MATLAB/seven_fsm.m`) generates transition tables, state graphs, and timed route traces **without requiring Stateflow**. The diagrams are documentation models; MATLAB is not controlling the real robot.
-
-## 1. Raspberry Pi: one-shot perception and command FSM
+## Raspberry Pi · perception and dispatch
 
 ![Raspberry Pi finite-state machine](diagrams/raspberry_pi_fsm.png)
 
-```mermaid
-flowchart TD
-    A[CAMERA_SETUP] --> B[CAPTURE]
-    B --> C[CLASSIFY HSV ROI]
-    C -->|Coverage < 20%| Z[NO_COLOR: no serial command]
-    C -->|RED, GREEN, or BLUE| D[CHECK_ROUTE]
-    D -->|No successful CHECK response| R[REJECTED]
-    D -->|Route model check OK| E[ASK_CONFIRM]
-    E -->|No| F[DECLINED]
-    E -->|Yes| G[SEND_ARM]
-    G -->|Fixed wait| H[SEND_RUN]
-    H --> I[MONITOR]
-    I -->|Color route complete| J[DONE]
-    I -->|ERR response| K[ERROR]
-    I -->|180 seconds exceeded| L[TIMEOUT warning]
-```
+| State | Transition |
+| --- | --- |
+| CAPTURE → CLASSIFY | Acquire one frame and classify the fixed ROI. If the highest HSV mask coverage is below 20%, end at NO_COLOR. |
+| CHECK_ROUTE | Send `CHECK COLOR` and look for `Route model check OK`. If it is absent, end at REJECTED before arming. |
+| CONFIRM | Prompt the operator. A declined route ends at DECLINED. |
+| ARM → RUN | Send `ARM`, wait approximately one second, then send `RUN COLOR`. |
+| MONITOR | Finish at DONE on `Color route complete`, ERROR on `ERR:`, or TIMEOUT after 180 seconds. |
 
-Notes: the Pi checks **model reachability** by looking for the exact Arduino text `Route model check OK`, not physical collision safety. After sending `ARM`, the script waits approximately one second then sends `RUN` without checking for a specific positive ARM acknowledgement. The route-complete line indicates completed **command interpolation**, not verified movement. A Python-side timeout does not send a physical emergency stop.
+The baseline script uses a timed wait after `ARM`. The [capacity-aware controller](SLOT_TRACKING_AND_FSM.md) waits for an arming acknowledgement and matches the completion message to the run before committing a count.
 
-## 2. Arduino: arm and sorting-route FSM
+## Arduino · guarded, timed actuation
 
 ![Arduino finite-state machine](diagrams/arduino_fsm.png)
 
-```mermaid
-flowchart TD
-    A[DISARMED] -->|ARM| B[ARMED_IDLE]
-    B -->|RUN, grip not open| C[OPENING]
-    B -->|RUN, grip open| D[MOVING waypoint]
-    C -->|Gripper reaches open command| D
-    D -->|PICK reached at step 2| E[GRIPPER_ACTION close]
-    D -->|DROP reached at step 6| E
-    D -->|Other non-final waypoint| F[WAITING]
-    E -->|Gripper interpolation complete| F
-    F -->|RUN: 1 second elapsed| D
-    F -->|MANUAL: NEXT command| D
-    D -->|Step 8 HOME complete| B
-    D -->|STOP| B
-    E -->|STOP| B
-    F -->|STOP| B
-    C -->|STOP| B
-```
+| Command or event | Effect |
+| --- | --- |
+| `ARM` | Attach actuators from DISARMED and apply the initial angles `[105, 73, 60]` and open gripper command `90°`. An already-armed request leaves the posture unchanged. |
+| `CHECK COLOR` | Evaluate the color's route waypoints against the kinematic and command guards without starting a sequence. |
+| `RUN COLOR` | Require an armed, idle controller, a valid route, and an idle gripper with distinct open and closed targets. Open the gripper first if needed, then start the automatic route. |
+| Waypoint completion | Close at PICK (step 2), open at the drop point (step 6), and wait for gripper interpolation after each action. Enter WAITING after any nonfinal waypoint. |
+| WAITING | Advance after at least 1000 ms in automatic mode, or on `NEXT` in `MANUAL COLOR` mode. |
+| Final HOME | Emit the completion line and return to ARMED_IDLE. |
+| `STOP` | Cancel active interpolation, gripper updates, and waypoint progression. The attached servos hold their last commanded outputs. |
 
-The `ARM` command sets initial model angles `[105,73,60]` and gripper OPEN = `90°`. The automatic route is eight waypoints and seven pauses, with a gripper close at step 2 (default `115°`) and open at step 6 (`90°`). `STOP` cancels updating motor commands but the servos **hold their last outputs**. Invalid `RUN` while moving or unreachable poses are rejected by the firmware; those rejection guards are described in the generated transition CSV and original source rather than redrawn at every arrow.
+The red route is `AP → PICK → AP → HOME → AR → DR → AR → HOME`. Green and blue substitute AG/DG and AB/DB.
 
-## 3. MATLAB implementation
+## Combined automata
 
-From the MATLAB project folder:
+![Combined Pi and Arduino automaton](diagrams/combined_automata.jpeg)
 
-```matlab
-seven_fsm
-seven_fsm_self_test
-```
+The two state machines exchange messages asynchronously. For example, the Pi can enter MONITOR before the Arduino receives `RUN`. A modeled joint or gripper transition can occur while the Pi remains in MONITOR. A host timeout ends the Pi's monitoring while the Arduino may continue. DONE means command interpolation finished. The operator observes the physical pickup and deposit.
 
-This creates `MATLAB/outputs/fsm/` containing:
+The controller invariant is **G(sequenceActive ⇒ armed)**, where **G** means the implication holds in every reachable state. At reset the two flags are false. The guarded route-start command can set `sequenceActive` only after verifying `armed`. Waypoint progress preserves `armed`, and completion or `STOP` clears the active sequence. The diagram assumes a clean start and commands from the Pi workflow.
 
-| File | Interpretation |
-|---|---|
-| `raspberry_pi_transitions.csv` | Pi states, trigger/guard, target state, effect |
-| `arduino_transitions.csv` | Arduino states, event/guard, target state, effect |
-| `raspberry_pi_fsm.png`, `arduino_fsm.png` | Auto-laid-out state diagrams, with exact guard text in CSV |
-| `trace_RED.csv`, `trace_GREEN.csv`, `trace_BLUE.csv` | Time-stamped arm route-state events from the commanded MATLAB simulation |
-| `timeline_RED.png`, `timeline_GREEN.png`, `timeline_BLUE.png` | State-versus-time graphs |
+## Reproducing the control models
 
-`seven_fsm_self_test` verifies for each color exactly **8 waypoint starts, 2 gripper actions, 7 waits, a final ARMED_IDLE state**, and a route completion timestamp matching the modeled command sequence. This is a consistency check against *the software model*, not a test of the physical arm.
-
-## 4. Interfaces and missing feedback
-
-The Pi FSM and Arduino FSM communicate using ASCII serial commands. Vision operates **once** per Python invocation, whereas Arduino `loop()` updates active movement non-blockingly. The only completion signal sent to Pi is a string printed by firmware. There are no limit switches, gripper contact sensors, joint encoders, or direct pose measurements, so there is no feedback-driven correction transition in the model.
+Run `seven_fsm` and `seven_fsm_self_test` from the `MATLAB/` folder. The generator exports the Pi and Arduino transition tables, state graphs, and timed traces under `MATLAB/outputs/fsm/`. For each route, the self-test checks eight waypoint starts, two gripper actions, seven waits, final ARMED_IDLE, and agreement between the completion time and simulated command duration. The state graphs run as offline MATLAB models.

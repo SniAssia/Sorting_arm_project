@@ -1,23 +1,30 @@
 digraph Arm {
- graph [rankdir=LR, bgcolor="white", splines=polyline, nodesep=0.6, ranksep=0.95, pad=0.2, fontname="DejaVu Sans"];
- node [shape=box, style="rounded,filled", fillcolor="#E8F0FA", color="#456785", fontsize=11, fontname="DejaVu Sans", margin="0.15,0.12"];
- edge [color="#58758C", fontsize=9, arrowsize=0.7, fontname="DejaVu Sans"];
- DISARMED [fillcolor="#F4EDE9"];
- ARMED_IDLE [fillcolor="#DDF2E4"];
- MOVING [fillcolor="#D8EDF7"];
- GRIPPER_ACTION [fillcolor="#F9E6CE"];
- WAITING [fillcolor="#F2F0D4"];
- DISARMED -> ARMED_IDLE [label="ARM"];
- ARMED_IDLE -> OPENING [label="RUN / grip closed"];
- ARMED_IDLE -> MOVING [label="RUN / grip open"];
- OPENING -> MOVING [label="opened"];
- MOVING -> GRIPPER_ACTION [label="PICK or DROP"];
- MOVING -> WAITING [label="other nonfinal waypoint"];
- GRIPPER_ACTION -> WAITING [label="grip completed"];
- WAITING -> MOVING [label="1 s (RUN) / NEXT (MANUAL)"];
- MOVING -> ARMED_IDLE [label="step 8 HOME complete"];
- MOVING -> ARMED_IDLE [label="STOP"];
- GRIPPER_ACTION -> ARMED_IDLE [label="STOP"];
- WAITING -> ARMED_IDLE [label="STOP"];
- OPENING -> ARMED_IDLE [label="STOP"];
+  graph [rankdir=TB, bgcolor="white", splines=polyline, nodesep=0.65,
+         ranksep=0.60, pad=0.22, fontname="Arial", dpi=160,
+         labelloc=b, labeljust=l, fontsize=12,
+         label="STOP during OPENING, MOVING, GRIPPER_ACTION, or WAITING returns to ARMED_IDLE."];
+  node [shape=box, style="rounded,filled", fillcolor="#E8F0FA",
+        color="#456785", fontsize=14, fontname="Arial Bold", margin="0.14,0.11"];
+  edge [color="#456785", fontcolor="#263242", fontsize=12, fontname="Arial",
+        arrowsize=0.74, penwidth=1.25];
+
+  DISARMED [fillcolor="#F4EDE9"];
+  ARMED_IDLE [fillcolor="#DDF2E4"];
+  MOVING [fillcolor="#D8EDF7"];
+  GRIPPER_ACTION [fillcolor="#F9E6CE"];
+  WAITING [fillcolor="#F2F0D4"];
+
+  {rank=same; DISARMED; ARMED_IDLE;}
+  {rank=same; OPENING; MOVING;}
+  {rank=same; GRIPPER_ACTION; WAITING;}
+
+  DISARMED -> ARMED_IDLE [label="ARM"];
+  ARMED_IDLE -> OPENING [label="RUN / grip not open"];
+  ARMED_IDLE -> MOVING [label="RUN / grip open"];
+  OPENING -> MOVING [label="opened"];
+  MOVING -> GRIPPER_ACTION [label="PICK or DROP"];
+  MOVING -> WAITING [label="other nonfinal waypoint"];
+  GRIPPER_ACTION -> WAITING [label="grip complete"];
+  WAITING -> MOVING [label="1 s (RUN) or NEXT (MANUAL)", constraint=false];
+  MOVING -> ARMED_IDLE [label="final HOME", constraint=false];
 }

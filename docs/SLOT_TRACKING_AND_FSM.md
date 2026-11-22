@@ -18,6 +18,8 @@ Each color has one bin, one calibrated firmware destination and a capacity of th
 
 ## Interruption and manual actions
 
+From the repository root, run `python3 Original_Source_Code/RaspberryPi/sort_with_slots.py --status` to inspect the saved counts and any pending operation. Use the same script with the recovery or reset arguments below.
+
 A per-state-file operating-system lock covers the full operation, including classification, approval and persistence. All operators controlling the same arm must use the same state file. Read-only status can display the last saved snapshot while a sort runs. Use the bin capacity controller for all counted runs. Commands issued by other scripts or through the serial monitor bypass its counters.
 
 An execution error, disconnect, timeout or process exit after the pending record was saved leaves the operation available for review. A monitoring timeout can occur while the robot is still moving. Wait until motion has stopped and inspect the gripper and destination bin. Use exactly one recovery command for the pending operation.
@@ -41,4 +43,4 @@ The controller persists counts and pending operations in `runtime/occupancy.json
 
 `MATLAB/seven_slot_fsm.m` exports the transition table, diagram and three-per-color logical trace under `MATLAB/outputs/fsm/`. The associated self-test checks the normal path, rejection, pending review and reset transitions. The original perception and motion FSMs document camera classification and firmware execution.
 
-The hardware-free Python tests exercise the CLI using the packaged bin definitions, temporary state files and a mocked Arduino serial port. Physical clearance and placement reliability as the three bins fill still require observed trials.
+The hardware-free Python tests exercise the CLI using the packaged bin definitions, temporary state files and a mocked Arduino serial port.

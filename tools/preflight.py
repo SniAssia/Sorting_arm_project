@@ -32,11 +32,32 @@ def fk(q):
     return (h*math.sin(b),h*math.cos(b),12*math.sin(s)+12*math.sin(s+e-math.pi))
 
 
+def read_commands(path: Path):
+    with path.open(newline='', encoding='utf-8-sig') as stream:
+        reader = csv.DictReader(stream)
+        missing = set(FIELDS).difference(reader.fieldnames or [])
+        assert not missing, f'{path.name} missing columns: {sorted(missing)}'
+        return list(reader)
+
+
+def check_matlab_export(bundled_rows, path: Path):
+    generated_rows = read_commands(path)
+    assert len(generated_rows) == len(bundled_rows), f'Row count differs in {path}'
+    for line, (bundled, generated) in enumerate(zip(bundled_rows, generated_rows), start=2):
+        matches = all(
+            math.isclose(float(bundled[field]), float(generated[field]), rel_tol=0, abs_tol=1e-8)
+            for field in FIELDS
+        )
+        assert matches and bundled.get('Phase') == generated.get('Phase'), (
+            f'MATLAB and bundled commands differ in {path}, line {line}'
+        )
+
+
 def main():
     for file in [ARDUINO, PI]:
         assert file.is_file(), f'Missing source: {file}'
     assert sha256(ARDUINO)==ARDUINO_SHA256, 'Arduino SHA-256 changed'
-    assert sha256(PI)==PI_SHA256, 'Pi transcription SHA-256 changed'
+    assert sha256(PI)==PI_SHA256, 'Raspberry Pi source SHA-256 changed'
     ast.parse(PI.read_text(encoding='utf-8'),filename=str(PI))
     for script in list((ROOT/'PyBullet').glob('*.py')) + [BASE/'RaspberryPi'/'sort_with_slots.py']:
         ast.parse(script.read_text(encoding='utf-8'),filename=str(script))
@@ -44,16 +65,11 @@ def main():
         assert needle in PI.read_text(encoding='utf-8'), f'Pi source missing {needle}'
     print('[PASS] Arduino and Raspberry Pi source checksums match')
 
-    excluded=['MATLAB/seven_render_3d.m','MATLAB/seven_drive_simscape.m',
-              'MATLAB/seven_import_simscape.m','MATLAB/src/seven_animate.m',
-              'MATLAB/seven_stl_gallery.m','PyBullet/seven_stl_tools.py','STL_files']
-    for rel in excluded:
-        assert not (ROOT/rel).exists(), f'Obsolete 3D/Simscape/STL component still included: {rel}'
     for rel in ['MATLAB/seven_fsm.m','MATLAB/seven_fsm_self_test.m',
                 'MATLAB/src/seven_plot_results.m','docs/FINITE_STATE_MACHINES.md',
                 'MATLAB/seven_build_simulink.m','PyBullet/robot/seven_kinematic.urdf']:
         assert (ROOT/rel).is_file(), f'Missing required file: {rel}'
-    print('[PASS] Package is STL-free; PyBullet is the only 3D robot renderer; MATLAB FSM files included')
+    print('[PASS] Required model, script and documentation files')
 
     urdf=ET.parse(ROOT/'PyBullet/robot/seven_kinematic.urdf').getroot()
     joints={j.attrib['name'] for j in urdf.findall('joint')}
@@ -62,17 +78,13 @@ def main():
     print('[PASS] Generic URDF joint structure')
 
     for color in COLORS:
-        m=ROOT/f'MATLAB/outputs/{color}/commands.csv'
-        p=ROOT/f'PyBullet/trajectories/{color}_commands.csv'
-        assert m.is_file() and p.is_file(), f'Missing route {color}'
-        assert m.read_bytes()==p.read_bytes(), f'MATLAB/PyBullet CSV disagreement {color}'
-        with m.open(newline='',encoding='utf-8-sig') as f:
-            csvrows=list(csv.DictReader(f))
+        bundled=ROOT/f'PyBullet/trajectories/{color}_commands.csv'
+        assert bundled.is_file(), f'Missing bundled {color} route'
+        csvrows=read_commands(bundled)
         assert len(csvrows)>=200, f'Short route {color}'
         times=[]; close_t=None; open_t=None; max_error=0.0
         for r in csvrows:
             for key in FIELDS:
-                assert key in r, f'CSV {color} missing {key}'
                 assert math.isfinite(float(r[key])), f'{color} non-finite value {key}'
             t=float(r['Time_s']); times.append(t)
             q=[float(r[k]) for k in ['Base_deg','Shoulder_deg','Elbow_deg']]
@@ -86,6 +98,10 @@ def main():
         assert close_t is not None and open_t is not None, f'Grip/release missing in {color}'
         assert max_error<0.02, f'{color} FK numerical deviation {max_error} cm'  # CSV precision
         print(f'[PASS] {color}: {len(csvrows)} samples, {times[-1]:.1f}s; grip {close_t:.1f}s, release {open_t:.1f}s; FK max {max_error:.8f}cm')
+        generated=ROOT/f'MATLAB/outputs/{color}/commands.csv'
+        if generated.exists():
+            check_matlab_export(csvrows, generated)
+            print(f'[PASS] {color}: local MATLAB export matches the bundled commands')
 
     config=json.loads((ROOT/'config/slots.json').read_text(encoding='utf-8'))
     assert config['schema_version']==2

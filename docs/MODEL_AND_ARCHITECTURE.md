@@ -1,86 +1,56 @@
-# Architecture and mathematical model
+# System architecture and kinematic model
 
-The Arduino provides one route per color. The bin capacity controller checks a persistent count before `CHECK COLOR`, waits for an `ARM` acknowledgement, and updates the count after successful sequence completion. Each bin accepts three objects at its original fixed destination. [Bin capacity FSM](SLOT_TRACKING_AND_FSM.md)
+## Controller boundary
 
+The Raspberry Pi captures one 640 × 480 frame and classifies its fixed 200 × 200 pickup ROI using HSV masks. It sends the winning color to the Arduino over USB serial at 115200 baud after a successful route check and operator approval. The Uno owns the waypoint coordinates, inverse kinematics, and timed joint and gripper commands. D6 drives the base, D9 the shoulder, D10 the elbow, and D11 the gripper. [Serial protocol and state machines](FINITE_STATE_MACHINES.md)
 
-## 1. Hardware/software boundaries
+## Geometric model
 
-```text
-Pi Camera -> Picamera2 RGB888 capture (640x480)
-          -> fixed ROI [x:220..420, y:140..340]
-          -> OpenCV HSV red/green/blue masks and pixel coverage
-          -> color if >=20% coverage, else UNKNOWN
-          -> USB serial CHECK COLOR (115200 baud), parse route-check text
-          -> operator confirmation -> ARM -> RUN COLOR
-          -> Arduino route FSM / IK + joint-command interpolation
-          -> D6 base, D9 shoulder, D10 elbow, D11 gripper
-          -> pickup; lift; HOME; colored bin; release; HOME
-```
+The origin is at the shoulder pivot. Base angle $b$ is measured from the positive $y$ axis toward positive $x$. Shoulder angle $s$ is measured above the horizontal in the arm plane. The interior elbow angle $e$ equals $\pi$ when the links are straight. The nominal shoulder-to-elbow and elbow-to-tool lengths are $L_1=L_2=12\,\mathrm{cm}$. Trigonometric expressions use radians and the command interface uses degrees.
 
-The camera captures **one** frame per execution. The classification code has separate low/high-hue ranges for RED; the `confidence` variable is HSV mask **coverage**, not a classifier probability. Raspberry Pi script captures the frame, writes `classification_result.jpg` and `roi.jpg`, opens serial only after a color passes threshold, checks the route, requests confirmation, and monitors textual Arduino responses. The serial `ARM` command is sent before `RUN`; the Pi does not require a distinct positive `ARM` acknowledgment before transmitting `RUN`.
-
-## 2. Geometric definitions
-
-The origin is the shoulder-pivot point, not the camera or robot-base origin. Link lengths are nominal `L1=L2=12 cm`. Joint variables are `(b,s,e)` in degrees at the firmware interface, converted to radians in trig calculations.
-
-\[
+$$
 \begin{aligned}
- h &= L_1\cos(s)+L_2\cos(s+e-\pi),\\
- x &= h\sin(b),\\
- y &= h\cos(b),\\
- z &= L_1\sin(s)+L_2\sin(s+e-\pi).
+r &= L_1\cos(s)+L_2\cos(s+e-\pi),\\
+x &= r\sin(b),\qquad y=r\cos(b),\\
+z &= L_1\sin(s)+L_2\sin(s+e-\pi).
 \end{aligned}
-\]
+$$
 
-Inverse kinematics, following the Arduino source, uses:
+For a Cartesian target, form the triangle with sides $L_1$, $L_2$, and $d$ in the arm plane. The implemented branch uses the law of cosines and adds the shoulder triangle angle to the target elevation.
 
-\[
- r=\sqrt{x^2+y^2},\qquad d=\sqrt{r^2+z^2},\qquad b=\operatorname{atan2}(x,y),
-\]
+$$
+\begin{aligned}
+r &= \sqrt{x^2+y^2},\qquad d=\sqrt{r^2+z^2},\qquad b=\operatorname{atan2}(x,y),\\
+s &= \operatorname{atan2}(z,r)+\arccos\!\left(\frac{L_1^2+d^2-L_2^2}{2L_1d}\right),\\
+e &= \arccos\!\left(\frac{L_1^2+L_2^2-d^2}{2L_1L_2}\right).
+\end{aligned}
+$$
 
-\[
- e=\arccos\left(\frac{L_1^2+L_2^2-d^2}{2L_1L_2}\right),\quad
- s=\operatorname{atan2}(z,r)+\arccos\left(\frac{L_1^2+d^2-L_2^2}{2L_1d}\right).
-\]
+For AP, the target $(3.93,14.68,14.18)\,\mathrm{cm}$ gives approximately $(15^\circ,73^\circ,120^\circ)$. MATLAB solves IK and reconstructs the target with FK for each of the nine firmware poses. All nine pass the checks for angle bounds and Euclidean residual below $10^{-4}\,\mathrm{cm}$.
 
-The firmware rejects unreachable points, including additional conservative software conditions `x>=1 cm`, `z>=-6 cm`, `3 cm<=d<=23 cm`, and model joint angles in `[0,180]`. These conditions do **not** establish obstacle avoidance or physical mechanical clearances.
+The firmware enforces finite coordinates, $x\ge 1\,\mathrm{cm}$, $z\ge-6\,\mathrm{cm}$, $3\le d\le23\,\mathrm{cm}$, joint commands in $[0^\circ,180^\circ]$, and FK reconstruction error below $0.1\,\mathrm{cm}$. The angle bounds are command limits. The physical joint range and clearance must be verified on the assembled mechanism.
 
-## 3. Waypoint order and command timing
+## Waypoints and trajectory generation
 
-The route in the team's custom firmware is:
+| Step | Target | Gripper action |
+| ---: | --- | --- |
+| 1 | AP, above pickup | |
+| 2 | PICK | Close |
+| 3 | AP, after lifting | |
+| 4 | HOME | |
+| 5 | AR, AG, or AB, above the selected cup | |
+| 6 | DR, DG, or DB, at the selected cup | Open |
+| 7 | AR, AG, or AB, after retracting | |
+| 8 | HOME | |
 
-| Step | Commanded target | Gripper action after target |
-|---:|---|---|
-| 1 | `AP` above pickup | none |
-| 2 | `PICK` | CLOSE |
-| 3 | `AP` after lifting | none |
-| 4 | `HOME` | none |
-| 5 | `AR/AG/AB` above selected bin | none |
-| 6 | `DR/DG/DB` at selected bin | OPEN |
-| 7 | `AR/AG/AB` above bin | none |
-| 8 | `HOME` | none, sequence ends |
+The reference MATLAB routes start after ARM at $[105^\circ,73^\circ,60^\circ]$ with the gripper open. The model advances each positioning joint by up to 1° per 100 ms and the gripper by 1° per 30 ms. It pauses for 1 s between automatic waypoints once any associated gripper action is complete. The modeled duration excludes capture, serial exchange, and approval time.
 
-The controller increments each commanded joint by up to 1° every 100 ms. It increments the gripper by 1° every 30 ms and pauses 1000 ms between automatic waypoints. `RUN COLOR` is automatically advanced; `MANUAL COLOR` requires `NEXT` after each waypoint. MATLAB simulates the `RUN` command, starting from the firmware's initial `ARM` pose `[105,73,60]` degrees. It does not model unknown serial/camera delays.
+![Red-route joint and gripper command histories](../figures/joint_angles.png)
 
-Joint-space motion causes curved paths in Cartesian space even when two endpoints have equal XY coordinates. The numerical pickup descent deviates by approximately **2.73 cm** in XY from the intended vertical line. Clearance must be physically checked across the entire sweep.
+The modeled pickup descent travels up to 2.73 cm laterally from the vertical line through the pickup point because the controller interpolates the joint angles. The following plot shows this path in the shoulder-relative horizontal plane. [MATLAB Cartesian XY footprint](../figures/xy_footprint.pdf)
 
-## 4. Simulink interpretation
+## PyBullet replay
 
-For explanatory purposes only, the servo actuator is represented as an assumed first-order system:
+PyBullet uses metres and radians, and its URDF places the shoulder 0.06 m above the simulated floor. The replay maps $q_{\mathrm{yaw}}=-b$, $q_{\mathrm{shoulder}}=s$, and $q_{\mathrm{elbow}}=e-\pi$. It compares the URDF tool frame with the CSV reference after compensating for the shoulder height. Virtual prismatic jaws and scripted attachment visualize pickup and release. [Blue route replay](../figures/SEVEN_PyBullet_BLUE.png)
 
-\[
- G(s)=\frac{\theta_{\mathrm{hypothetical}}(s)}{\theta_{\mathrm{command}}(s)}
- =\frac{1}{\tau s+1},\qquad \tau=0.35\,\mathrm{s}\;\text{(assumed)}.
-\]
-
-The values of tau, torque, friction and servo gain are **not experimentally identified**. The position curve is a numerical prediction, not encoder measurements. Full rigid-body dynamics and a physically validated gripper are outside this project's computational model.
-
-## 5. PyBullet mapping
-
-The generic robot URDF uses metres/radians, with a modeled shoulder height of `0.06 m` above the PyBullet floor. Joint-state transforms are:
-
-- `base_yaw = -deg2rad(b)`
-- `shoulder_pitch = deg2rad(s)`
-- `elbow_pitch = deg2rad(e) - pi`
-
-The two virtual prismatic jaws are a **visual approximation** of the physical servo gripper. A colored cube is programmatically attached to the commanded end-effector position and released at the destination. Physics-based contact, forces, collisions and real servo actuation have **not** been validated by these animations.
+The trajectory comparison establishes agreement among command and geometric models. Physical positioning and grasp behavior depend on the assembled robot and its operating conditions.

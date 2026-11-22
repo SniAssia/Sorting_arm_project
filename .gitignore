@@ -29,14 +29,8 @@ credentials/
 *.pem
 *.p12
 
-# Automatically exported simulation outputs; keep checked-in baseline command data
-MATLAB/outputs/**
-!MATLAB/outputs/RED/
-!MATLAB/outputs/GREEN/
-!MATLAB/outputs/BLUE/
-!MATLAB/outputs/RED/commands.csv
-!MATLAB/outputs/GREEN/commands.csv
-!MATLAB/outputs/BLUE/commands.csv
+# Generated MATLAB and PyBullet outputs
+/MATLAB/outputs/
 PyBullet/screenshots/
 *.asv
 *.slxc
@@ -49,10 +43,20 @@ slprj/
 *.stl
 *.STL
 STL_files/
-START_HERE.md
 
-# Presentation/video/media created by team: review before committing
+# Local recordings
 *.mp4
 *.mov
 *.avi
 recordings/
+
+# Local release and LaTeX build products
+/SEVEN_Final_Professor_Submission.zip
+/main.aux
+/main.fdb_latexmk
+/main.fls
+/main.out
+/main.synctex.gz
+/main.toc
+/main.lof
+/main.lot

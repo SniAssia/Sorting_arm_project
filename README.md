@@ -1,200 +1,134 @@
 # Automated Color-Sorting Arm
 
-**Embedded Systems | UM6P College of Computing**  
-**Group members:** Assia Snissi, Khadija Lekbiri, Manal Zaidi, Rhita Rhallami 
+**Embedded Systems · UM6P College of Computing**
 
-**System status:** The team reports physical operation of the color-sorting MVP. Software tests cover bin capacity, route execution and recovery. Repeated physical trials with partially filled bins are pending.
+Assia SNISSI · Khadija LEKBIRI · Manal ZAIDI · Rhita RHALLAMI
 
-## Project summary
+[Technical report](main.pdf) · [LaTeX source](main.tex)
 
-This project demonstrates an **MVP of an industrial color-sorting system** using a 3D-printed   arm, an Arduino Uno, a Raspberry Pi camera, and Python/OpenCV. The camera classifies a single object as red, green, blue, or unknown. The Arduino moves the arm through eight programmed waypoints to pick up and route the object to its assigned bin. The Raspberry Pi controller tracks a maximum of **three objects per color bin** and retains independent occupancy estimates across restarts.
+## Project overview
 
-All objects of a given color use the same calibrated firmware waypoint. The Pi checks capacity before opening the serial port. Once the count reaches three, it reports the bin as full.
+The prototype identifies a red, green, or blue object at a fixed pickup station and transfers it to the corresponding cup after operator approval. It combines camera-based perception, route validation, and timed pick-and-place on a 3D-printed arm.
 
-## 1. Scope and architecture
+## System architecture
 
-```text
-Raspberry Pi camera (640×480)
-    → 200×200-pixel ROI + HSV color coverage (>=20%)
-    → check the detected color’s bin count (0..3)
-    → Arduino CHECK route + operator approval
-    → persist PENDING transaction → ARM → RUN
-    → joint-space pick-and-place sequence
-    → Arduino reports sequence completion → persist count +1 and clear PENDING
+| Stage | Responsibility |
+| --- | --- |
+| **Perceive** | The Raspberry Pi camera captures one frame. OpenCV classifies the pickup region by HSV mask coverage. |
+| **Decide** | The Pi selects a color route, requests a kinematic check from the Uno, and asks the operator to approve it. |
+| **Act** | The Arduino Uno computes joint targets and sequences the three positioning servos and gripper. |
+
+The controllers exchange newline-delimited commands and replies over USB serial at **115200 baud**. The Arduino advances the route on its own timers while the Pi monitors replies. [Architecture and model](docs/MODEL_AND_ARCHITECTURE.md)
+
+## Hardware components
+
+![Assembled arm with camera, Raspberry Pi, Arduino, battery pack and destination cups](figures/hardware_setup.jpeg)
+
+The printed arm uses four SG90 servos. The Arduino drives the base, shoulder, elbow and gripper on D6, D9, D10 and D11, respectively. An external battery supply powers the servos and shares signal ground with the Uno. The Pi camera faces the pickup station and three cups serve the red, green, and blue destinations. The [report](main.pdf) identifies the components on the photo. The [demo frame](figures/sorting_demo.jpg) shows the arm gripping a blue object.
+
+## Computer-vision pipeline
+
+Picamera2 captures one 640 × 480 frame. OpenCV converts the 200 × 200-pixel ROI at columns `220:420` and rows `140:340` to HSV and counts matches for each color. Red uses two hue intervals to account for hue wraparound. The Pi selects the color with the greatest coverage if at least 20% of the ROI matches. Otherwise it returns `UNKNOWN` without sending a route. Red selects DR, green selects DG, and blue selects DB. The pickup point is fixed by the firmware.
+
+## Kinematic modeling and numerical validation
+
+The model uses base, shoulder, and elbow angles `(b, s, e)` and two nominal 12 cm links. Forward kinematics projects the links into the arm plane and rotates the horizontal reach about the base. Inverse kinematics solves the link triangle for each Cartesian target. For example, the above-pickup target `(3.93, 14.68, 14.18) cm` yields approximately `(15°, 73°, 120°)`.
+
+**9/9 programmed poses** passed MATLAB's FK–IK check. For each target, the self-test verifies the IK angles are in range and the FK reconstruction error is below `0.0001 cm`. This tolerance measures numerical agreement within the nominal model. [Equations and conventions](docs/MODEL_AND_ARCHITECTURE.md#geometric-model)
+
+## Arduino and Raspberry Pi control logic
+
+- **Raspberry Pi** follows **Capture → Classify → Check Route → Confirm → ARM/RUN → Monitor**. `CHECK COLOR` tests route feasibility before actuation. The Pi monitors for completion, an Arduino error, or its 180-second deadline.
+- **Arduino** accepts `RUN COLOR` only while armed and with a valid route and available controller. The red route is **AP → PICK → AP → HOME → AR → DR → AR → HOME**. It closes the gripper at PICK, opens at DR, and waits one second between automatic waypoints after movement and any gripper action. Green and blue use their corresponding approach and release points.
+- **Coordination** relies on the firmware invariant that an active route implies an armed controller. `STOP` cancels motion updates and attached servos hold their last commands. The completion line records the end of the commanded sequence. [State diagrams and serial behavior](docs/FINITE_STATE_MACHINES.md)
+
+## MATLAB and PyBullet
+
+| Tool | Contribution |
+| --- | --- |
+| **MATLAB** | Solves and checks kinematics, generates joint-command CSVs, and verifies waypoint, timing, gripper, and capacity-state transitions. |
+| **PyBullet** | Replays the CSVs through a generic 3D arm and compares its tool frame with the nominal trajectory. Object attachment and release are scripted for visualization. |
+
+The modeled red, green, and blue runs take **45.7 s**, **43.1 s**, and **49.5 s**, respectively, from route start to final HOME. The modeled pickup descent sweeps **2.73 cm** laterally despite its vertically aligned endpoints. The sweep informs clearance checks during physical setup.
+
+## Running the physical prototype
+
+1. Upload the [SEVEN sketch](Original_Source_Code/Arduino/SEVEN_color_sorter_original/SEVEN_color_sorter_original.ino) to the Arduino Uno using Arduino IDE and the Servo library. Wire the servos to the external supply with common ground. Verify the startup posture, gripper calibration, and unobstructed sweeps before sending `ARM`.
+2. In the Arduino serial monitor use **115200 baud** and newline termination. Use `POSES` to inspect targets and send `CHECK RED`, `CHECK GREEN`, and `CHECK BLUE` to check the configured routes. Close the monitor before starting the Pi controller.
+3. On Raspberry Pi OS, use an environment with working Picamera2, OpenCV, NumPy, and pyserial. Connect the Uno by USB. The baseline script opens `/dev/ttyACM0`. The capacity controller accepts a `--port` override.
+4. Place one object at pickup in the camera ROI. From the repository root, start the baseline controller as shown below, review the chosen route, and enter `yes` to approve it. Use the capacity controller for all counted runs.
+
+```bash
+cd runtime
+python3 ../Original_Source_Code/RaspberryPi/color_sorter_original.py
 ```
 
-Three positioning joints control the base, shoulder and elbow; a fourth SG90 servo operates the gripper. The nominal arm model uses two 12 cm links. The sorting controller is **open-loop**: it has no position encoders, object-contact sensor, collision monitor, or automatic confirmation of physical deposit.
+The baseline script saves its annotated frame and ROI in the working directory. The operator supervises physical movement and observes each deposit.
 
-The three bins use RED → DR, GREEN → DG and BLUE → DB. UNKNOWN produces no route. Sorting runs once per invocation.
+## Reproducing software verification
 
-## 2. Directory guide
+From the repository root, with Python 3:
 
-| Location | Purpose |
-|---|---|
-| `Original_Source_Code/Arduino/SEVEN_color_sorter_original/*.ino` | physical robot firmware |
-| `Original_Source_Code/RaspberryPi/sort_with_slots.py` | persistent bin capacity controller |
-| `config/slots.json` | Capacity and firmware destination identifier for each color |
-| `MATLAB/` | FK/IK, route modeling, plots, numerical tests and state machines |
-| `MATLAB/outputs/{RED,GREEN,BLUE}/commands.csv` | Verified fixed-destination command trajectories |
-| `MATLAB/seven_slot_fsm.m` | Capacity-aware controller FSM and logical example |
-| `PyBullet/` | Generic 3D arm, sorting route replay, URDF and verification |
-| `tests/` | Python unit tests using a simulated Arduino serial interface |
-| `tools/preflight.py` | Offline package/source-integrity checks |
-| `docs/` | Kinematic model, FSM specifications, diagrams and Simulink scope plots |
-| `runtime/` | Local occupancy/camera output created on execution; intentionally not tracked |
-
-
-## 3. Reproduce the numerical work (Windows/Linux; no hardware required)
-
-The four offline checks below require Python 3. MATLAB reproduces the trajectory and FSM models. Simulink runs the servo model, and PyBullet renders the 3D replay.
-
-From the repository root:
-
-```powershell
+```bash
 python tools/preflight.py
 python -m unittest discover -s tests -v
 python PyBullet/simulate.py --verify-only --all
 python PyBullet/test_urdf.py
 ```
 
-Windows users can alternatively run:
+These checks use the standard library and the included CSVs. They verify source hashes and route agreement, exercise capacity and recovery with mocked serial I/O, and check the URDF kinematic transforms. On Windows, `powershell -ExecutionPolicy Bypass -File .\RUN_CHECKS.ps1` runs all four checks.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\RUN_CHECKS.ps1
+Open MATLAB in the repository's `MATLAB/` directory and run:
+
+```matlab
+seven_self_test
+seven_fsm_self_test
+seven_slot_fsm_self_test
+run_SEVEN_project
+seven_fsm
+seven_slot_fsm
 ```
 
-The controller can be inspected without a camera, an Arduino, or writing an occupancy file:
+The first three commands run the self-tests. The remaining commands generate trajectories, plots, and state traces under `MATLAB/outputs/`.
 
-```powershell
+[Bundled trajectories](PyBullet/trajectories/) support verification and replay on a fresh checkout. PyBullet uses local MATLAB exports when present, and preflight checks their numerical agreement with the bundled commands.
+
+Install the listed dependencies for 3D replay:
+
+```bash
+python -m pip install -r PyBullet/requirements.txt
+python PyBullet/simulate.py --all --headless
+python PyBullet/simulate.py --color BLUE
+```
+
+To rebuild the report, run `pdflatex -halt-on-error main.tex` twice from the repository root with a LaTeX distribution that includes TikZ, Latin Modern, and the packages declared in [main.tex](main.tex).
+
+| Location | Contents |
+| --- | --- |
+| [Original_Source_Code/](Original_Source_Code/) | Arduino sketch and both Raspberry Pi entry points |
+| [MATLAB/](MATLAB/) · [PyBullet/](PyBullet/) | Numerical models, self-tests, URDF, and route CSVs |
+| [docs/](docs/) · [figures/](figures/) | Technical notes, state diagrams, physical photos, and model figures |
+| [config/](config/) · [tests/](tests/) · [tools/](tools/) | Capacity configuration, unit tests, and preflight |
+
+## Additional feature · Bin-capacity management
+
+The capacity-aware Pi entry point independently tracks **three objects per bin** at the original DR, DG, and DB drop coordinates. It rejects a fourth counted placement before serial access and commits the count only after the matching route starts and completes. A persisted pending record and an operating-system lock support recovery and prevent concurrent counted runs. Use the same state file for every counted run. [Recovery and reset instructions](docs/SLOT_TRACKING_AND_FSM.md)
+
+```bash
 python Original_Source_Code/RaspberryPi/sort_with_slots.py --status
 python Original_Source_Code/RaspberryPi/sort_with_slots.py --verify-config
 python Original_Source_Code/RaspberryPi/sort_with_slots.py --color RED --dry-run
+python Original_Source_Code/RaspberryPi/sort_with_slots.py
 ```
 
-The offline tests exercise the packaged bin configuration and the controller CLI with mocked serial communication. They cover capacity limits, fixed routes, persistence, cancellation, timeout, concurrent access, reset and recovery. Hardware-free previews leave occupancy unchanged.
+The first three commands can run without hardware. Use `python3` for the physical run on Raspberry Pi OS. Counts estimate occupancy from completed commands and operator reconciliation.
 
-### MATLAB and Simulink
+## Applications and future work
 
-Open MATLAB and set the Current Folder to the repository's `MATLAB` directory:
+A recycling station could retain the route-selection and manipulation architecture while using near-infrared or hyperspectral sensing to identify streams such as PET, HDPE, and PP. The current RGB camera sorts by visible color. Further development could add a six-axis manipulator for wrist orientation, AI-powered adaptive grasping for varied objects, and multi-robot scheduling for shared industrial workspaces.
 
-```matlab
-run_SEVEN_project         % FK/IK, command trajectories, 2D plots and CSV
-seven_self_test           % original 8-waypoint numerical checks
-seven_fsm                 % original Pi/Arduino FSM transitions and traces
-seven_fsm_self_test
-seven_slot_fsm            % bin capacity FSM and abstract capacity trace
-seven_slot_fsm_self_test
-seven_build_simulink      % generates outputs/SEVEN_Servo_Tracking.slx
-```
+## References and credits
 
-Open the generated Simulink model and run its Base, Shoulder and Elbow scopes. Its first-order actuator response (`tau = 0.35 s`) is **an illustrative assumption**, not a measured SG90 motor model. The MATLAB/Simulink project is numerical and diagrammatic; it does not contain a 3D renderer.
-
-### PyBullet: generic 3D arm
-
-```powershell
-python -m pip install -r PyBullet/requirements.txt
-python PyBullet/simulate.py --color RED
-python PyBullet/simulate.py --color GREEN
-python PyBullet/simulate.py --color BLUE --screenshot
-python PyBullet/simulate.py --all --headless
-```
-
-PyBullet replays the exported firmware routes through a generic articulated URDF. The simulation scripts object grasp and release. Each replay uses the same destination as the Pi controller for that color.
-
-## 4. Physical robot setup
-
-**Hardware:**   3D-printed arm, Arduino Uno, four servo motors, Raspberry Pi and camera, external suitable servo supply, USB serial connection and common electrical ground. The original firmware maps base/shoulder/elbow/gripper to Arduino `D6/D9/D10/D11` respectively. Do **not** power four servos from the Arduino 5 V output.
-
-1. With servo power controlled and mechanical clearances checked, upload `Original_Source_Code/Arduino/SEVEN_color_sorter_original/SEVEN_color_sorter_original.ino` via Arduino IDE (board/port per actual setup).
-2. Use Arduino Serial Monitor at **115200 baud**, newline termination. Check `HELP`, `POSES` and `CHECK RED/GREEN/BLUE` before motion.
-3. Confirm the physical HOME, pickup and bin positions, servo orientation, grip open/closed calibration, and a safe startup posture. `ARM` attaches servos and commands a stored initial pose.
-4. On the Raspberry Pi, use an OS environment supporting Picamera2, OpenCV, NumPy and pyserial. The sorting controller captures **one frame** and asks for operator confirmation before `RUN COLOR`.
-5. The camera ROI is `x=220:420, y=140:340` and the color threshold is 20% HSV-mask **pixel coverage**, not a probabilistic confidence score. The default serial device is `/dev/ttyACM0`.
-
-## 5. Bin capacity tracking
-
-| Bin | Firmware drop waypoint | Maximum count |
-|---|---|---:|
-| RED | DR | 3 |
-| GREEN | DG | 3 |
-| BLUE | DB | 3 |
-
-Each bin uses one fixed drop-off coordinate for all three objects. The firmware owns the calibrated approach and drop coordinates. The Pi configuration records only the bin capacity and destination name. A fourth object is rejected before any serial command.
-
-Use the supplied schema-v2 `config/slots.json` and retain `runtime/occupancy.json`. The controller validates the schema-v1 counts and pending record before each operation. If an earlier session changed the Arduino’s in-memory poses, restart the firmware while the arm is safely idle to restore the sketch’s calibrated defaults before using this controller.
-
-For the **capacity-aware** Raspberry Pi workflow:
-
-```bash
-# In the project root on Raspberry Pi
-python3 Original_Source_Code/RaspberryPi/sort_with_slots.py --verify-config
-python3 Original_Source_Code/RaspberryPi/sort_with_slots.py --status
-python3 Original_Source_Code/RaspberryPi/sort_with_slots.py
-```
-
-Optional serial device override:
-
-```bash
-python3 Original_Source_Code/RaspberryPi/sort_with_slots.py --port /dev/ttyACM1
-```
-
-Controlled trials without camera recognition may select a color explicitly (they are **not** evidence of automatic color-classification accuracy):
-
-```bash
-python3 Original_Source_Code/RaspberryPi/sort_with_slots.py --color GREEN
-```
-
-The script sends `CHECK COLOR`, requests approval, saves the pending operation, then sends `ARM` and `RUN COLOR`. After observing the route start and the Arduino’s successful completion message, it increments the selected counter once. This count estimates occupancy. Physical pickup and deposit require observation.
-
-The Pi atomically writes `runtime/occupancy.json`. An interruption after the pending record is saved leaves the count unchanged until reconciliation. Once motion has stopped, inspect the gripper and bin before choosing a recovery command.
-
-```bash
-python3 Original_Source_Code/RaspberryPi/sort_with_slots.py --status
-# Use ONE of these only after visually checking the intended bin:
-python3 Original_Source_Code/RaspberryPi/sort_with_slots.py --resolve-pending placed --confirm
-python3 Original_Source_Code/RaspberryPi/sort_with_slots.py --resolve-pending not-placed --confirm
-```
-
-After physically emptying a bin, reset its count:
-
-```bash
-python3 Original_Source_Code/RaspberryPi/sort_with_slots.py --reset RED --confirm
-# or, only after physically emptying all three bins:
-python3 Original_Source_Code/RaspberryPi/sort_with_slots.py --reset ALL --confirm
-```
-
-Use the same occupancy file for every invocation controlling this arm. An operating-system lock excludes concurrent sorts, resets and recovery commands. Pending operations must be reconciled before resetting any bin.
-
-See [capacity logic and FSM details](docs/SLOT_TRACKING_AND_FSM.md).
-
-## 6. Mathematical model, finite-state machines and verification
-
-For model joint angles `(b, s, e)` in radians and nominal link lengths `L1 = L2 = 12 cm`, relative to the shoulder pivot:
-
-$$
- h=L_1\cos s + L_2\cos(s+e-\pi),\quad
- x=h\sin b,\quad y=h\cos b,\quad
- z=L_1\sin s+L_2\sin(s+e-\pi).
-$$
-
-The controller interpolates joint angles by 1 degree per 100 ms, gripper by 1 degree per 30 ms, with 1-second automatic waypoint delays. The original sort route is:
-
-`AP → PICK (close gripper) → AP → HOME → ABOVE_BIN → DROP (open gripper) → ABOVE_BIN → HOME`.
-
-The original Raspberry Pi and Arduino state diagrams are in `docs/diagrams/`. The bin capacity FSM covers capacity validation, approval, execution, completion, counter updates and operator recovery. MATLAB exports its transition table and diagram with `seven_slot_fsm`.
-
-**Verified computational results** (not measured physical runtime):
-
-| Color | Samples | Nominal duration | MATLAB/PyBullet interpretation |
-|---|---:|---:|---|
-| Red | 430 | 45.7 s | Fixed-destination command sequence |
-| Green | 404 | 43.1 s | Fixed-destination command sequence |
-| Blue | 468 | 49.5 s | Fixed-destination command sequence |
-
-All nine original FK/IK target roundtrips passed numerical consistency tests. The modeled pickup descent has roughly **2.73 cm lateral deviation** under joint-space interpolation, so clearances cannot be inferred from endpoints. Reported PyBullet tool-frame agreement is numerical consistency between models, not evidence of real accuracy or grasp success. Repeated physical sorting trials are still needed to measure placement reliability as each bin fills.
-
-## 7. Attribution
-
-- T. Selçuk Yüksel, [SEVEN 3-DOF Arduino Robotic Arm](https://github.com/elevenMiles/Robotic_Arm_Seven), MIT licensed upstream design.
-- MATLAB and Simulink (MathWorks); PyBullet; OpenCV; Raspberry Pi Picamera2; Arduino Servo library.
-- The team’s Arduino firmware and Raspberry Pi control software are in `Original_Source_Code/`.
+- T. Selçuk Yüksel designed the open-source **SEVEN 3-DOF Arduino Robotic Arm** under the MIT license. The sorting firmware, vision pipeline, and evaluation models are project contributions. [Upstream SEVEN design](https://github.com/elevenMiles/Robotic_Arm_Seven)
+- The prototype uses Arduino Servo, Raspberry Pi Picamera2, and OpenCV HSV thresholding. [Arduino Servo](https://docs.arduino.cc/libraries/servo/) · [Picamera2](https://github.com/raspberrypi/picamera2) · [OpenCV](https://docs.opencv.org/4.x/da/d97/tutorial_threshold_inRange.html)
+- The offline models use MATLAB and PyBullet. [MATLAB](https://www.mathworks.com/help/matlab/) · [PyBullet](https://github.com/bulletphysics/bullet3/tree/master/docs/pybullet_quickstart_guide)
