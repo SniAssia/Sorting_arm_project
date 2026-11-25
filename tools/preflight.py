@@ -16,9 +16,12 @@ COLORS = ('RED', 'GREEN', 'BLUE')
 BASE = ROOT/'Original_Source_Code'
 ARDUINO = BASE/'Arduino'/'SEVEN_color_sorter_original'/'SEVEN_color_sorter_original.ino'
 PI = BASE/'RaspberryPi'/'color_sorter_original.py'
-# Reference digests for the two preserved source files.
-ARDUINO_SHA256 = '1f847a9d935ca0ec6cbde9c3ca36bd44e92db5dd7b8071cb795dffebd8e5d059'
-PI_SHA256 = 'a7305e1119182928d337ba119277d44c894d034d3c92de11c20ec8ed7966eef8'
+# Original controller SHA-256 at commit cb909d0:
+# Arduino: 1f847a9d935ca0ec6cbde9c3ca36bd44e92db5dd7b8071cb795dffebd8e5d059
+# Pi:      a7305e1119182928d337ba119277d44c894d034d3c92de11c20ec8ed7966eef8
+# SHA-256 of the submitted controllers, including comments and line endings.
+ARDUINO_SHA256 = 'a31cd5fd2e738ead380fc5e22cfce9f1da74c81e50e389dfbad5c770da74d032'
+PI_SHA256 = 'e9a1e7bee25ea544548be9dd8239439b3d168247a7213e848b5177ca93941e22'
 FIELDS = ('Time_s','Base_deg','Shoulder_deg','Elbow_deg','Gripper_deg','X_cm','Y_cm','Z_cm')
 
 

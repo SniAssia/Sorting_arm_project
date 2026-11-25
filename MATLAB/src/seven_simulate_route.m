@@ -69,17 +69,7 @@ end
 
 XYZ = seven_fk(Q,cfg);
 
-% Illustrative motor lag. This is explicitly NOT hardware feedback.
-Qlag = zeros(size(Q));
-Qlag(1,:) = Q(1,:);
-for k = 2:numel(T)
-    dt = T(k)-T(k-1);
-    alpha = 1 - exp(-dt/cfg.assumedTau);
-    Qlag(k,:) = Qlag(k-1,:) + alpha*(Q(k,:)-Qlag(k-1,:));
-end
-XYZlag = seven_fk(Qlag,cfg);
-
-% Nominal vertical descent versus actual arc under joint-space interpolation.
+% Horizontal deviation of the commanded path during descent.
 idxPick = startIdx(2):endIdx(2);
 idxDrop = startIdx(6):endIdx(6);
 xyPickTarget = cfg.poseXYZ(routeIds(2),1:2);
@@ -97,8 +87,6 @@ sim.Q = Q;
 sim.G = G;
 sim.phases = phases;
 sim.XYZ = XYZ;
-sim.Qlag = Qlag;
-sim.XYZlag = XYZlag;
 sim.startIdx = startIdx;
 sim.endIdx = endIdx;
 sim.arrivalTime = arrivalTime;
@@ -106,5 +94,4 @@ sim.waypointActions = waypointActions;
 sim.durationSeconds = T(end);
 sim.maxPickupDriftCm = max(pickDrift);
 sim.maxDropDriftCm = max(dropDrift);
-sim.maxAssumedLagCm = max(sqrt(sum((XYZ-XYZlag).^2,2)));
 end

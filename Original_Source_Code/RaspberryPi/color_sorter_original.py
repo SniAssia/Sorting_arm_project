@@ -11,7 +11,7 @@ import serial
 PORT = "/dev/ttyACM0"
 BAUD = 115200
 
-# Same ROI used in your successful camera test
+# Fixed pickup region in the 640 x 480 camera frame
 x1, y1 = 220, 140
 x2, y2 = 420, 340
 
@@ -51,7 +51,6 @@ camera.start()
 time.sleep(2)
 
 try:
-    # Capture one frame, as in your original test
     frame = camera.capture_array()
 
 finally:
@@ -59,7 +58,7 @@ finally:
 
 roi = frame[y1:y2, x1:x2]
 
-# Your original working conversion
+# RGB888 frames from Picamera2 have BGR channel order in the array.
 hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
 scores = {}
@@ -164,7 +163,7 @@ if detected_color in ["RED", "GREEN", "BLUE"]:
 
             if answer == "yes":
 
-                # Your Arduino requires ARM first.
+                # The firmware accepts RUN only after ARM.
                 arduino.write(b"ARM\n")
                 arduino.flush()
                 time.sleep(1)

@@ -2,20 +2,12 @@ function seven_plot_results(sim,cfg,outDir)
 %SEVEN_PLOT_RESULTS Export only 2D model analyses (no MATLAB 3D render).
 % These are mathematical predictions based on commands, not sensor data.
 
-% Joint angles compared with illustrative first-order actuator tracking.
+% Positioning and gripper setpoints share the same command clock.
 f=figure('Name',[sim.color ' Joint Commands'],'Color','w','Visible','off');
-names={'Base','Shoulder','Elbow'};
-for j=1:3
-    subplot(3,1,j);
-    plot(sim.T,sim.Q(:,j),'LineWidth',1.55); hold on;
-    plot(sim.T,sim.Qlag(:,j),'--','LineWidth',1.0);
-    ylabel([names{j} ' (deg)']); grid on;
-    if j==1
-        title([sim.color ': commanded joint angles and assumed lag']);
-        legend({'Command','Illustrative response (not measured)'},'Location','best');
-    end
-    if j==3, xlabel('Time (s)'); end
-end
+stairs(sim.T,[sim.Q sim.G],'LineWidth',1.4);
+grid on; xlabel('Command time (s)'); ylabel('Command angle (deg)');
+legend({'Base','Shoulder','Elbow','Gripper'},'Location','best');
+title([sim.color ': joint and gripper commands']);
 exportgraphics(f,fullfile(outDir,'joint_angles.png'),'Resolution',170);
 close(f);
 

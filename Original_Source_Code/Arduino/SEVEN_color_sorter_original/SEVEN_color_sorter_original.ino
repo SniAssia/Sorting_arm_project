@@ -1,9 +1,8 @@
 /*
  * SEVEN — Arduino-only 3-DOF color-route demo + gripper
  * Base D6, shoulder D9, elbow D10, gripper D11.
- * Upload this sketch INSTEAD of the original main.ino.
  *
- * Model from your report: L1 = L2 = 12 cm, origin at shoulder pivot.
+ * Arm geometry: L1 = L2 = 12 cm, origin at shoulder pivot.
  *   h = L1*cos(s) + L2*cos(s+e-PI)
  *   x = h*sin(b); y = h*cos(b)
  *   z = L1*sin(s) + L2*sin(s+e-PI)
@@ -25,7 +24,7 @@
 
 const byte PIN_BASE = 6, PIN_SHOULDER = 9, PIN_ELBOW = 10, PIN_GRIPPER = 11;
 const float L1 = 12.0f, L2 = 12.0f;   // cm; check actual pivot distances
-const unsigned long STEP_MS = 100;     // ~10 degrees/s, conservative first test
+const unsigned long STEP_MS = 100;     // nominal joint speed: 10 degrees/s
 const float STEP_DEG = 1.0f;
 const unsigned long GRIPPER_STEP_MS = 30; // 1 degree / 30 ms
 const int GRIPPER_OPEN_ANGLE = 90;         // Default OPEN position
@@ -37,14 +36,12 @@ bool autoAdvance = false;
 unsigned long waypointFinishedAt = 0;
 const unsigned long WAYPOINT_PAUSE_MS = 1000;
 
-// Original Seven physical orientation: base normal, shoulder normal,
-// elbow reversed. If you calibrated using direct Servo.write() angles,
-// check this mapping BEFORE attaching the arm. Do not change blindly.
+// The calibrated command mapping is direct on all three axes.
+// Check horn alignment and axis direction before attaching the arm.
 const bool REVERSED[3] = {false, false, false};
 const float TRIM_DEG[3] = {0.0f, 0.0f, 0.0f};
 
-// Only SOFTWARE angle limits requested: 0..180 degrees for every joint.
-// These are NOT mechanical safe limits for the assembled robot.
+// Electrical command range for each joint. Mechanical clearance depends on assembly.
 const float LOWER[3] = {0.0f, 0.0f, 0.0f};
 const float UPPER[3] = {180.0f, 180.0f, 180.0f};
 

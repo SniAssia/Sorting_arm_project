@@ -23,8 +23,9 @@
 \definecolor{pale}{HTML}{EBF4F4}
 \definecolor{darktext}{HTML}{263242}
 \newcommand{\team}{Assia SNISSI, Khadija LEKBIRI, Manal ZAIDI, Rhita RHALLAMI}
+\newcommand{\reporttitle}{Automated Color~Sorting~Arm}
 \hypersetup{colorlinks=true,linkcolor=navy,urlcolor=teal,citecolor=teal,
-  pdftitle={Autonomous Color-Sorting Robotic Arm},pdfauthor={\team}}
+  pdftitle={\reporttitle},pdfauthor={\team}}
 \graphicspath{{figures/}{docs/diagrams/}}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{6pt}
@@ -39,7 +40,7 @@
 \captionsetup{font=small,labelfont={bf,color=navy},skip=6pt,hypcap=false}
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\sffamily\textcolor{muted}{Autonomous Color-Sorting Robotic Arm}}
+\fancyhead[L]{\small\sffamily\textcolor{muted}{\reporttitle}}
 \fancyhead[R]{\small\sffamily\textcolor{muted}{UM6P \enspace\textbar\enspace Embedded Systems}}
 \fancyfoot[R]{\small\sffamily\textcolor{muted}{\thepage}}
 \renewcommand{\headrulewidth}{.35pt}
@@ -61,7 +62,7 @@
 \vfill
 {\color{teal!35!white}\rule{22mm}{2pt}\par}
 \vspace{6mm}
-{\fontsize{38}{42}\selectfont\bfseries Autonomous\\ Color-Sorting\\ Robotic Arm\par}
+{\fontsize{38}{42}\selectfont\bfseries \reporttitle\par}
 \vspace{8mm}
 {\Large Embedded vision, kinematics, and coordinated control\par}
 \vfill
@@ -251,7 +252,7 @@ In a sorting cycle the operator places an object at the pickup point, the camera
 The optional Pi controller keeps an independent count of up to three placements per color at the same firmware drop points. It rejects a full bin before serial access and saves a pending operation before arming. It waits for an arming acknowledgement and increments the selected count once after the matching route starts and completes. Atomic persistence and an operating-system lock protect the state across restarts and concurrent invocations. After an interrupted run, the operator inspects the cup and reconciles the pending operation. Counts are estimates based on completed commands and operator reconciliation.
 
 \clearpage
-\section{MATLAB and PyBullet}
+\section{MATLAB, Simulink, and PyBullet}
 \subsection{MATLAB: timed command trajectories and control checks}
 MATLAB evaluates Equations~\ref{eq:fk} and~\ref{eq:ik}, then reproduces the firmware's step intervals, waypoint order, and gripper actions. Each CSV records time, three joint commands, gripper command, Cartesian tool coordinates, and the current phase. The control-model tests check eight waypoint starts, two gripper actions, seven waits, and return to armed idle for each color. A separate model and self-test cover the bin-capacity transitions.
 
@@ -272,7 +273,7 @@ Blue & AB, DB & 468 & 49.5\,s \\
 \end{tabularx}\par
 }
 
-Durations run from the modeled start of the route to final HOME. All routes share the same pickup descent. Although AP and PICK have the same horizontal coordinates, joint-space stepping changes both link elevations and yields a maximum modeled lateral deviation of $2.73\,\mathrm{cm}$ from the vertical pickup line. This value informs the clearance assessment between waypoints.
+Simulink replays the four red-route commands on a common time axis, holding each value until the next sample. Durations run from the modeled start of the route to final HOME. All routes share the same pickup descent. Although AP and PICK have the same horizontal coordinates, joint-space stepping changes both link elevations and yields a maximum modeled lateral deviation of $2.73\,\mathrm{cm}$ from the vertical pickup line. This value informs the clearance assessment between waypoints.
 
 \clearpage
 \subsection{PyBullet: three-dimensional replay}

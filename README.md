@@ -1,4 +1,4 @@
-# Automated Color-Sorting Arm
+# Automated Color Sorting Arm
 
 **Embedded Systems · UM6P College of Computing**
 
@@ -42,11 +42,12 @@ The model uses base, shoulder, and elbow angles `(b, s, e)` and two nominal 12 c
 - **Arduino** accepts `RUN COLOR` only while armed and with a valid route and available controller. The red route is **AP → PICK → AP → HOME → AR → DR → AR → HOME**. It closes the gripper at PICK, opens at DR, and waits one second between automatic waypoints after movement and any gripper action. Green and blue use their corresponding approach and release points.
 - **Coordination** relies on the firmware invariant that an active route implies an armed controller. `STOP` cancels motion updates and attached servos hold their last commands. The completion line records the end of the commanded sequence. [State diagrams and serial behavior](docs/FINITE_STATE_MACHINES.md)
 
-## MATLAB and PyBullet
+## MATLAB, Simulink, and PyBullet
 
 | Tool | Contribution |
 | --- | --- |
 | **MATLAB** | Solves and checks kinematics, generates joint-command CSVs, and verifies waypoint, timing, gripper, and capacity-state transitions. |
+| **Simulink** | Displays the four red-route command angles with a zero-order hold between samples. |
 | **PyBullet** | Replays the CSVs through a generic 3D arm and compares its tool frame with the nominal trajectory. Object attachment and release are scripted for visualization. |
 
 The modeled red, green, and blue runs take **45.7 s**, **43.1 s**, and **49.5 s**, respectively, from route start to final HOME. The modeled pickup descent sweeps **2.73 cm** laterally despite its vertically aligned endpoints. The sweep informs clearance checks during physical setup.
@@ -59,6 +60,7 @@ The modeled red, green, and blue runs take **45.7 s**, **43.1 s**, and **49.5 s*
 4. Place one object at pickup in the camera ROI. From the repository root, start the baseline controller as shown below, review the chosen route, and enter `yes` to approve it. Use the capacity controller for all counted runs.
 
 ```bash
+mkdir -p runtime
 cd runtime
 python3 ../Original_Source_Code/RaspberryPi/color_sorter_original.py
 ```
@@ -67,7 +69,7 @@ The baseline script saves its annotated frame and ROI in the working directory. 
 
 ## Reproducing software verification
 
-From the repository root, with Python 3:
+From the repository root, with Python 3.10 or later:
 
 ```bash
 python tools/preflight.py
@@ -89,7 +91,7 @@ seven_fsm
 seven_slot_fsm
 ```
 
-The first three commands run the self-tests. The remaining commands generate trajectories, plots, and state traces under `MATLAB/outputs/`.
+The first three commands run the self-tests. The remaining commands generate trajectories, plots, and state traces under `MATLAB/outputs/`. With Simulink installed, run `model = seven_build_simulink(); sim(model); open_system(model)` to inspect the red-route command replay.
 
 [Bundled trajectories](PyBullet/trajectories/) support verification and replay on a fresh checkout. PyBullet uses local MATLAB exports when present, and preflight checks their numerical agreement with the bundled commands.
 

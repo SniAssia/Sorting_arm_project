@@ -1,5 +1,5 @@
 function cfg = seven_config()
-%SEVEN_CONFIG Robot geometry and routing read from team's Arduino sketch.
+%SEVEN_CONFIG Nominal geometry, waypoint coordinates and timing from the Arduino sketch.
 % Units: cm / degrees / seconds. These are modeled inputs, not calibration data.
 cfg.L1 = 12.0;
 cfg.L2 = 12.0;
@@ -10,7 +10,6 @@ cfg.jointStepDeg = 1.0;
 cfg.jointDt = 0.100;
 cfg.gripDt = 0.030;
 cfg.pauseDt = 1.000;
-cfg.assumedTau = 0.35; % HYPOTHETICAL servo time constant, not measured
 
 % Names and XYZ copied from custom Arduino's poses[POSE_COUNT].
 cfg.poseNames = {'HOME','AP','PICK','AR','DR','AG','DG','AB','DB'};

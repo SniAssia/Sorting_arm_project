@@ -16,8 +16,7 @@ venv/
 *.bak
 
 # Private runtime state, automatic camera captures, logs
-runtime/**
-!runtime/.gitkeep
+/runtime/
 **/classification_result.jpg
 **/roi.jpg
 **/captures/
